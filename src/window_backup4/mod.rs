@@ -1,10 +1,13 @@
 use crate::comms::Comms;
+use client::Client;
 use std::sync::mpsc::Receiver;
 
 use eframe::{egui, epaint::Vec2, EventLoopBuilderHook, RequestRepaintEvent};
 use egui_winit::winit::{
     event_loop::EventLoopBuilder, platform::windows::EventLoopBuilderExtWindows,
 };
+
+mod client;
 
 type EventLoopBuild = Option<EventLoopBuilderHook>;
 
@@ -21,7 +24,7 @@ pub fn init_window(recv: Receiver<Comms>) {
         always_on_top: true,
         drag_and_drop_support: false,
         icon_data: None,
-        initial_window_size: Some(Vec2::new(300.0, 200.0)),
+        initial_window_size: Some(Vec2::new(400.0, 300.0)),
         resizable: false,
         follow_system_theme: false,
         run_and_return: false,
@@ -30,7 +33,7 @@ pub fn init_window(recv: Receiver<Comms>) {
     };
 
     eframe::run_native(
-        "NorthstarGaming",
+        "Monarch ProxiChat",
         options,
         Box::new(|_cc| Box::new(Window::new(recv))),
     );
@@ -40,7 +43,9 @@ struct Window {
     x: i32,
     y: i32,
     z: i32,
+    addr: String,
     recv: Receiver<Comms>,
+    client: Client,
 }
 
 impl Window {
@@ -49,7 +54,9 @@ impl Window {
             x: 0,
             y: 0,
             z: 0,
+            addr: String::from("localhost:7888"),
             recv,
+            client: Client::new(),
         }
     }
 }
@@ -57,14 +64,45 @@ impl Window {
 impl eframe::App for Window {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Info about you gaming");
-            
-            ui.add_space(1.0);
-            ui.label(format!("ORIGIN {}, {}, {}", self.x, self.y, self.z));
+            ui.centered(|ui| {
+                ui.heading("Monarch ProxiChat");
+            });
+            ui.centered(|ui| {
+                ui.small("Be the reason someone's country gets socialism.");
+            });
+            ui.end_row();
+    
+            if self.client.has_stream() {
+                self.client.run();
+            } else {
+                ui.small("Enter your name");
+                ui.horizontal(|ui| {
+                    ui.text_edit_singleline(&mut self.client.name);
+                });
+                
+                ui.small("Enter the server's ip:port");
+                ui.horizontal(|ui| {
+                    ui.text_edit_singleline(&mut self.addr);
+                    if ui.button("connect").clicked() {
+                        match self.client.connect(&self.addr) {
+                            Ok(_) => {
+                                println!("INFO: CONNECTION ESTABLISHED")
+                            }
+                            Err(err) => {
+                                println!("WARNING: connection failed : {:?}", err);
+                                _ = self.client.cancel()
+                            }
+                        }
+                    }
+                });
+            }
 
             if let Ok(comms) = self.recv.try_recv() {
                 (self.x, self.y, self.z) = comms.into();
             }
+
+            ui.add_space(1.0);
+            ui.label(format!("ORIGIN {}, {}, {}", self.x, self.y, self.z));
         });
     }
 }

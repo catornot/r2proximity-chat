@@ -1,12 +1,19 @@
 use std::sync::mpsc::Receiver;
-
+use eframe::{EventLoopBuilder, RequestRepaintEvent, EventLoopBuilderHook};
 use eframe::{egui, epaint::Vec2};
+use egui_winit::winit::platform::windows::EventLoopBuilderExtWindows;
 
 use super::comms::Comms;
 use super::utils::{DEFAULT_WAIT,wait};
 
 pub fn init_window(recv: Receiver<Comms>) {
     env_logger::init();
+
+    let func = |event_loop_builder: &mut EventLoopBuilder<RequestRepaintEvent>| {
+        event_loop_builder.with_any_thread(true);
+    };
+
+    let event_loop_builder: Option<EventLoopBuilderHook> = Some(Box::new(func));
 
     let options = eframe::NativeOptions {
         drag_and_drop_support: false,
@@ -15,13 +22,16 @@ pub fn init_window(recv: Receiver<Comms>) {
         resizable: false,
         follow_system_theme: false,
         run_and_return: false,
+        event_loop_builder,
         ..Default::default()
     };
+
+    let window = Window::new(recv);
 
     eframe::run_native(
         "Server Window",
         options,
-        Box::new(|_cc| Box::new(Window::new(recv))),
+        Box::new(|_cc| Box::new(window)),
     );
 }
 
@@ -46,7 +56,7 @@ impl eframe::App for Window {
             
             ui.add_space(1.0);
             
-
+            println!("{:?}", &self.connected);
             for name in &self.connected {
                 ui.horizontal(|ui| {
                     ui.label(name);
