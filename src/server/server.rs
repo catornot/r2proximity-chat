@@ -1,15 +1,16 @@
 use comms::Comms;
 pub use eframe;
+use terminal::init_terminal;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::{sync::mpsc::channel, thread::spawn};
-use window::init_window;
 
+mod terminal;
 mod comms;
 mod utils;
-mod window;
+
 
 use self::utils::*;
 
@@ -21,13 +22,13 @@ struct Locks {
 
 fn main() {
     let (send, recv) = channel::<Comms>();
-
-    spawn(move || init_window(recv));
+    
+    spawn(move || init_terminal(recv));
 
     let listener: TcpListener = match TcpListener::bind("localhost:7888") {
         // "127.0.0.1:7888"
         Err(err) => {
-            println!("port isn't available {}", err);
+            // println!("port isn't available {}", err);
             return;
         }
         Ok(listener) => listener,
@@ -60,7 +61,7 @@ fn manager(send: Sender<Comms>, locks: Locks) {
     loop {
         if let Ok(connected) = locks.connected.try_lock() {
             comms.connected = connected.to_vec();
-            println!("DEBUG: connected {:?}",connected)
+            // println!("DEBUG: connected {:?}",connected)
         }
 
         send.send(comms.clone()).expect("guys server is down");
@@ -70,7 +71,7 @@ fn manager(send: Sender<Comms>, locks: Locks) {
 }
 
 fn handle_connection(mut stream: TcpStream, locks: Locks) {
-    println!("DEBUG: CONNECTION ESTABLISHED");
+    // println!("DEBUG: CONNECTION ESTABLISHED");
     loop {
         let mut buffer = [0; 1024];
 
@@ -88,7 +89,7 @@ fn handle_connection(mut stream: TcpStream, locks: Locks) {
                             Some(s) => s.0.to_string(),
                             None => s,
                         };
-                        println!("DEBUG: name added {:?}", &string);
+                        // println!("DEBUG: name added {:?}", &string);
                         connected.push(string);
                         break;
                     }

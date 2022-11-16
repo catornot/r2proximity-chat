@@ -90,7 +90,7 @@ impl eframe::App for Window {
                             }
                             Err(err) => {
                                 println!("WARNING: connection failed : {:?}", err);
-                                _ = self.client.cancel()
+                                self.client.cancel();
                             }
                         }
                     }

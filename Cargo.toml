@@ -10,6 +10,9 @@ rrplug = { version = "0.1.0", optional = true }
 env_logger = "0.9.3"
 futures = "0.3.25"
 egui-winit = "0.19.0"
+tui = { version = "0.19.0" }
+crossterm = "0.25.0"
+
 
 [dependencies.eframe]
 # path = "egui/crates/eframe"
@@ -17,6 +20,7 @@ egui-winit = "0.19.0"
 git = "https://github.com/catornot/egui.git"
 default-features = false
 features = ["wgpu","default_fonts"]
+optional = true
 
 [build-dependencies]
 windres = "0.2.2"
@@ -25,7 +29,7 @@ windres = "0.2.2"
 crate-type = ["cdylib"]
 
 [features]
-default = ["rrplug"]
+default = ["rrplug","eframe"]
 
 [[bin]]
 name = "server"
