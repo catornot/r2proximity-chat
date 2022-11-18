@@ -1,15 +1,17 @@
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use log;
+use tui_logger::{TuiLoggerLevelOutput, TuiLoggerWidget};
 use std::{
     io::{self, Stdout},
     sync::mpsc::Receiver,
 };
-use crossterm::terminal::{enable_raw_mode, disable_raw_mode};
 use tui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
     // terminal::{enable_raw_mode,disable_raw_mode},
-    widgets::{Block, BorderType, Borders, Paragraph, Tabs, Gauge},
+    widgets::{Block, BorderType, Borders, Gauge, Paragraph, Tabs},
     Terminal,
 };
 
@@ -50,6 +52,9 @@ impl TerminalRunner {
     fn run(&mut self) {
         let _ = enable_raw_mode();
 
+        tui_logger::init_logger(log::LevelFilter::Trace).unwrap();
+        tui_logger::set_default_level(log::LevelFilter::Trace);
+
         loop {
             if let Ok(comms) = self.recv.try_recv() {
                 self.connected = comms.connected;
@@ -78,6 +83,23 @@ impl TerminalRunner {
 
                 rect.render_widget(conn_w, chunks[1]);
 
+                let tui_w: TuiLoggerWidget = TuiLoggerWidget::default()
+                    .block(
+                        Block::default()
+                            .title("Log Console")
+                            .border_style(Style::default().fg(Color::White).bg(Color::Black))
+                            .borders(Borders::ALL),
+                    )
+                    .output_separator('|')
+                    .output_timestamp(Some("%F %H:%M:%S%.3f".to_string()))
+                    .output_level(Some(TuiLoggerLevelOutput::Long))
+                    .output_target(false)
+                    .output_file(false)
+                    .output_line(false)
+                    .style(Style::default().fg(Color::White).bg(Color::Black));
+
+                rect.render_widget(tui_w, chunks[2]);
+
                 let spin = get_bar(&mut self.progress);
                 rect.render_widget(spin, chunks[3]);
             });
@@ -100,7 +122,7 @@ fn get_nav() -> Tabs<'static> {
 
     Tabs::new(text)
         .style(Style::default().fg(Color::LightCyan))
-        .divider("| \n")
+        .divider("|")
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -135,11 +157,10 @@ fn get_connected(connected: &[String]) -> Paragraph {
 fn get_bar(progress: &mut u16) -> Gauge {
     if *progress >= 100_u16 {
         *progress = 0;
-    }
-    else {
+    } else {
         *progress += 1;
     }
-    
+
     Gauge::default()
         .block(Block::default().borders(Borders::ALL).title("Moving Thing"))
         .gauge_style(

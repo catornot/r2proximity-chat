@@ -61,7 +61,7 @@ impl eframe::App for Window {
                 ui.horizontal(|ui| {
                     ui.label(name);
                     if ui.checkbox(&mut true, "Muted").clicked() {
-                        println!("clicked")
+                        info!("clicked")
 
                     }
                 });

@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 rrplug = { version = "0.1.0", optional = true }
 env_logger = "0.9.3"
+tui-logger = "0.8.1"
+log= "0.4.17"
 futures = "0.3.25"
 egui-winit = "0.19.0"
 tui = { version = "0.19.0" }
