@@ -14,6 +14,11 @@ mod utils;
 
 use self::utils::*;
 
+// resources
+// https://github.com/RustAudio/rust-portaudio
+// https://github.com/Iroom-gbs/tritone
+// https://github.com/ldesgoui/discord_game_sdk
+
 #[derive(Debug, Clone)]
 struct Locks {
     connected: Arc<Mutex<Vec<String>>>,
