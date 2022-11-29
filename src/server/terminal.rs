@@ -1,19 +1,19 @@
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use log;
-use tui_logger::{TuiLoggerLevelOutput, TuiLoggerWidget};
 use std::{
     io::{self, Stdout},
     sync::mpsc::Receiver,
 };
 use tui::{
     backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
     // terminal::{enable_raw_mode,disable_raw_mode},
     widgets::{Block, BorderType, Borders, Gauge, Paragraph, Tabs},
     Terminal,
 };
+use tui_logger::{TuiLoggerLevelOutput, TuiLoggerWidget};
 
 // use crossterm::{
 //     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -62,26 +62,19 @@ impl TerminalRunner {
 
             let _ = self.terminal.draw(|rect| {
                 let size = rect.size();
-                let chunks = Layout::default()
-                    .direction(Direction::Horizontal)
+                let top = Layout::default()
+                    .direction(Direction::Vertical)
                     .margin(1)
-                    .constraints(
-                        [
-                            Constraint::Percentage(20),
-                            Constraint::Percentage(20),
-                            Constraint::Percentage(40),
-                            Constraint::Percentage(10),
-                        ]
-                        .as_ref(),
-                    )
+                    .constraints([Constraint::Percentage(20), Constraint::Percentage(50)].as_ref())
                     .split(size);
+                // let body = Layout::default()
+                //     .direction(Direction::Horizontal)
+                //     .margin(1)
+                //     .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+                //     .split(size);
 
-                let nav = get_nav();
-                rect.render_widget(nav, chunks[0]);
-
-                let conn_w = get_connected(&self.connected);
-
-                rect.render_widget(conn_w, chunks[1]);
+                let header = get_title();
+                rect.render_widget(header, top[0]);
 
                 let tui_w: TuiLoggerWidget = TuiLoggerWidget::default()
                     .block(
@@ -98,10 +91,14 @@ impl TerminalRunner {
                     .output_line(false)
                     .style(Style::default().fg(Color::White).bg(Color::Black));
 
-                rect.render_widget(tui_w, chunks[2]);
+                rect.render_widget(tui_w, top[1]);
 
-                let spin = get_bar(&mut self.progress);
-                rect.render_widget(spin, chunks[3]);
+                // let conn_w = get_connected(&self.connected);
+
+                // rect.render_widget(conn_w, body[0]);
+
+                // let spin = get_bar(&mut self.progress);
+                // rect.render_widget(spin, body[1]);
             });
 
             utils::wait(utils::DEFAULT_WAIT);
@@ -109,6 +106,22 @@ impl TerminalRunner {
 
         // let = disable_raw_mode();
     }
+}
+
+fn get_title() -> Paragraph<'static> {
+    let text = Spans::from(Span::from("Monarch Proxichat Server"));
+
+    Paragraph::new(text)
+        .style(Style::default().fg(Color::LightCyan))
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .style(Style::default().fg(Color::White))
+                .title("Proxichat")
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().add_modifier(Modifier::BOLD)),
+        )
 }
 
 fn get_nav() -> Tabs<'static> {
@@ -162,7 +175,12 @@ fn get_bar(progress: &mut u16) -> Gauge {
     }
 
     Gauge::default()
-        .block(Block::default().borders(Borders::ALL).title("Moving Thing"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Moving Thing")
+                .border_type(BorderType::Rounded),
+        )
         .gauge_style(
             Style::default()
                 .fg(Color::White)
