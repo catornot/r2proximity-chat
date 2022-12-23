@@ -12,8 +12,6 @@ mod client;
 type EventLoopBuild = Option<EventLoopBuilderHook>;
 
 pub fn init_window(recv: Receiver<Comms>) {
-    env_logger::init();
-
     let func = |event_loop_builder: &mut EventLoopBuilder<RequestRepaintEvent>| {
         event_loop_builder.with_any_thread(true);
     };
@@ -86,10 +84,10 @@ impl eframe::App for Window {
                     if ui.button("connect").clicked() {
                         match self.client.connect(&self.addr) {
                             Ok(_) => {
-                                println!("INFO: CONNECTION ESTABLISHED")
+                                log::info!("CONNECTION ESTABLISHED")
                             }
                             Err(err) => {
-                                println!("WARNING: connection failed : {:?}", err);
+                                log::warn!("connection failed : {err:?}");
                                 self.client.cancel();
                             }
                         }

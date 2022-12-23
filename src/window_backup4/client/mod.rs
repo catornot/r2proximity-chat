@@ -60,7 +60,7 @@ impl Client {
             }
         }
 
-        println!("DEBUG: read {:?}", buffer);
+        log::info!("read {:?}", buffer);
 
         match self.conn.as_mut().unwrap().write(&[1_u8]) {
             Ok(_) => {}
@@ -74,7 +74,6 @@ impl Client {
             Ok(_) => {}
             Err(err) => {
                 self.attemp(err);
-                return;
             }
         }
     }
@@ -86,7 +85,7 @@ impl Client {
             self.cancel()
         }
 
-        println!(
+        log::info!(
             "WARNING: {:?} when reading data attemp: {}",
             err, self.attemps
         );
