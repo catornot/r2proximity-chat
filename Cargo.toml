@@ -1,5 +1,5 @@
 [package]
-name = "r2proximity-chat"
+name = "proxichat"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,6 +10,8 @@ rrplug = { path = "../rrplug" }
 log = "0.4.17"
 futures = "0.3.25"
 egui-winit = "0.20.1"
+once_cell = "1.16.0"
+discord_game_sdk = "1.0.1"
 
 
 [dependencies.eframe]
