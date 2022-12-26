@@ -1,13 +1,10 @@
-use crate::comms::Comms;
-use client::Client;
+use crate::{comms::Comms, DISCORD};
 use std::sync::mpsc::Receiver;
 
 use eframe::{egui, epaint::Vec2, EventLoopBuilderHook, RequestRepaintEvent};
 use egui_winit::winit::{
     event_loop::EventLoopBuilder, platform::windows::EventLoopBuilderExtWindows,
 };
-
-mod client;
 
 type EventLoopBuild = Option<EventLoopBuilderHook>;
 
@@ -41,9 +38,8 @@ struct Window {
     x: i32,
     y: i32,
     z: i32,
-    addr: String,
     recv: Receiver<Comms>,
-    client: Client,
+    muted: bool,
 }
 
 impl Window {
@@ -52,9 +48,8 @@ impl Window {
             x: 0,
             y: 0,
             z: 0,
-            addr: String::from("localhost:7888"),
             recv,
-            client: Client::new(),
+            muted: false,
         }
     }
 }
@@ -70,45 +65,41 @@ impl eframe::App for Window {
             });
             ui.end_row();
 
-            ui.add_space(5.0);
-            ui.label("TODO: Add info display and buttons for volume and stuff");
-            ui.text_edit_singleline(&mut String::from("consider running this command: script_client CodeCallback_GetPlayerName()"));
-            
-            ui.add_space(2.0);
+            ui.add_space(10.0);
+
+            // todo: add connected status and other stuff :)
+
+            let text_mute = if self.muted {
+                "Mute"
+            } else {
+                "Unmute"
+            };
+
+            if ui.button(text_mute).clicked() {
+                let mute = unsafe { DISCORD.client.self_muted() };
+                if let Ok(mute) = mute {
+                    self.muted = mute;
+
+                    _ = unsafe { DISCORD.client.set_self_mute(!mute) };
+                }
+            }
+
+            ui.add_space(10.0);
+            ui.label("consider running this command: ");
+            ui.text_edit_singleline(&mut String::from(
+                "script_client CodeCallback_GetPlayerName()",
+            ));
+
+            ui.add_space(10.0);
             ui.small("REAL discord invite");
             ui.hyperlink("https://discord.gg/S7xsKuuhYb");
-    
-            // if self.client.has_stream() {
-            //     self.client.run();
-            // } else {
-            //     ui.small("Enter your name");
-            //     ui.horizontal(|ui| {
-            //         ui.text_edit_singleline(&mut self.client.name);
-            //     });
-                
-            //     ui.small("Enter the server's ip:port");
-            //     ui.horizontal(|ui| {
-            //         ui.text_edit_singleline(&mut self.addr);
-            //         if ui.button("connect").clicked() {
-            //             match self.client.connect(&self.addr) {
-            //                 Ok(_) => {
-            //                     log::info!("CONNECTION ESTABLISHED")
-            //                 }
-            //                 Err(err) => {
-            //                     log::warn!("connection failed : {err:?}");
-            //                     self.client.cancel();
-            //                 }
-            //             }
-            //         }
-            //     });
-            // }
 
             if let Ok(comms) = self.recv.try_recv() {
                 (self.x, self.y, self.z) = comms.into();
             }
-            
+
             ui.add_space(5.0);
-            ui.small("whar");           
+            ui.small("whar");
             ui.label(format!("ORIGIN {}, {}, {}", self.x, self.y, self.z));
         });
     }
