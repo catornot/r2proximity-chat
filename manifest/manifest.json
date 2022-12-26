@@ -1,7 +1,7 @@
 {
-	"name": "proxichat",
-	"displayname": "proxichat",
-	"description": "proxichat",
+	"name": "r2proxi-chat",
+	"displayname": "r2proxi-chat",
+	"description": "r2proxi-chat",
 	"api_version": "2",
 	"version": "1.0",
 	"run_on_server": false,

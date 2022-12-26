@@ -19,13 +19,15 @@ use crate::discord_client::DiscordClient;
 
 static PLAYER_POS: Lazy<RwLock<HashMap<String, Vector3>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
+static LOCAL_PLAYER: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new("None".to_string()));
 
-static mut DISCORD: Lazy<DiscordClient> = Lazy::new(|| DiscordClient::new());
+static mut DISCORD: Lazy<DiscordClient> = Lazy::new(DiscordClient::new);
 
 #[derive(Debug)]
 struct ProximityChat {
     send: Option<Sender<Comms>>,
     valid_cl_vm: RwLock<bool>,
+    // current_server: Option<String>, // how do I get this?
 }
 
 impl Plugin for ProximityChat {
@@ -33,11 +35,13 @@ impl Plugin for ProximityChat {
         Self {
             send: None,
             valid_cl_vm: RwLock::new(false),
+            // current_server: None,
         }
     }
 
     fn initialize(&mut self, plugin_data: &PluginData) {
         _ = plugin_data.register_sq_functions(info_push_player_pos);
+        _ = plugin_data.register_sq_functions(info_push_player_name);
         _ = plugin_data.register_sq_functions(info_nothing00909);
 
         let (send, recv) = channel::<Comms>();
@@ -49,15 +53,6 @@ impl Plugin for ProximityChat {
         log::info!("setting up discord stuff");
         let client = unsafe { &DISCORD };
         client.try_setup();
-
-        loop {
-            if let Ok(lock) = client.token.read() {
-                if lock.is_some() {
-                    break;
-                }
-            }
-            wait(1000)
-        }
     }
 
     fn main(&self) {
@@ -68,23 +63,34 @@ impl Plugin for ProximityChat {
             wait(10000)
         };
 
-        let client = unsafe { &mut DISCORD };
+        let client = unsafe { &mut *DISCORD };
 
         let _send = self.send.as_ref().unwrap();
 
         // let mut comms = Comms::default();
 
         loop {
+            wait(1000);
+
             _ = client.tick();
 
             if let Ok(lock) = self.valid_cl_vm.read() {
                 if !*lock {
+                    // log::info!("reseting vc volume");
+                    client.reset_vc();
                     continue;
                 }
             }
 
-            if let Ok(lock) = PLAYER_POS.read() {
-                log::info!("{lock:?}");
+            if let Ok(positions) = PLAYER_POS.read() {
+                log::info!("{positions:?}");
+
+                if let Ok(local_player) = LOCAL_PLAYER.read() {
+                    if let Some(local) = positions.get(&*local_player) {
+                        client.update_player_volumes(local, &positions);
+                        log::info!("updating volume");
+                    }
+                }
             }
 
             let func_name = to_sq_string!("CodeCallback_GetPlayersPostion");
@@ -96,8 +102,6 @@ impl Plugin for ProximityChat {
                     nothing00909,
                 )
             }
-
-            wait(3000);
         }
     }
 
@@ -109,14 +113,43 @@ impl Plugin for ProximityChat {
         if context != ScriptVmType::Client {
             return;
         }
+
+        match LOCAL_PLAYER.read() {
+            Ok(local_player) => {
+                if *local_player == "None" {
+                    log::error!("player name isn't registered yet so connection is canceled");
+                } else {
+                    let client = unsafe { &DISCORD };
+                    client.join("catornot-test".to_owned(), local_player.clone());
+                }
+            }
+            Err(err) => log::error!("unable to get lock : {err:?}"),
+        }
+
         if let Ok(mut lock) = self.valid_cl_vm.write() {
             *lock = true
+        }
+
+        let sq_functions = unsafe { SQFUNCTIONS.client.as_ref().unwrap() };
+
+        let func_name = to_sq_string!("CodeCallback_GetPlayerName");
+
+        // whar why is this not getting called?
+        unsafe {
+            (sq_functions.sq_schedule_call_external)(
+                ScriptContext_CLIENT,
+                func_name.as_ptr(),
+                nothing00909,
+            )
         }
     }
 
     fn on_sqvm_destroyed(&self, _context: ScriptVmType) {
-        if let Ok(mut lock) = self.valid_cl_vm.write() {
-            *lock = false
+        loop {
+            if let Ok(mut lock) = self.valid_cl_vm.write() {
+                *lock = false;
+                break;
+            }
         }
     }
 }
@@ -125,11 +158,23 @@ unsafe impl Sync for ProximityChat {}
 
 entry!(ProximityChat);
 
-#[sqfunction(VM=Client,ExportName=ProxiChatPushPlayersPositions)]
+#[sqfunction(VM=Client,ExportName=ProxiChatPushPlayerPositions)]
 fn push_player_pos(name: String, pos: Vector3) {
     if let Ok(mut lock) = PLAYER_POS.write() {
         _ = lock.insert(name, pos);
     }
+    sq_return_null!()
+}
+
+#[sqfunction(VM=Client,ExportName=ProxiChatPushPlayerName)]
+fn push_player_name(name: String) {
+    loop {
+        if let Ok(mut lock) = LOCAL_PLAYER.write() {
+            *lock = name.clone();
+            break;
+        }
+    }
+    log::error!("name is set to {name}");
     sq_return_null!()
 }
 
