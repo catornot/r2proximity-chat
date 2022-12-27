@@ -1,19 +1,13 @@
-use crate::comms::Comms;
-use client::Client;
-use std::sync::mpsc::Receiver;
+use crate::{DISCORD, comms::SHARED};
 
 use eframe::{egui, epaint::Vec2, EventLoopBuilderHook, RequestRepaintEvent};
 use egui_winit::winit::{
     event_loop::EventLoopBuilder, platform::windows::EventLoopBuilderExtWindows,
 };
 
-mod client;
-
 type EventLoopBuild = Option<EventLoopBuilderHook>;
 
-pub fn init_window(recv: Receiver<Comms>) {
-    env_logger::init();
-
+pub fn init_window() {
     let func = |event_loop_builder: &mut EventLoopBuilder<RequestRepaintEvent>| {
         event_loop_builder.with_any_thread(true);
     };
@@ -35,28 +29,18 @@ pub fn init_window(recv: Receiver<Comms>) {
     eframe::run_native(
         "Monarch ProxiChat",
         options,
-        Box::new(|_cc| Box::new(Window::new(recv))),
+        Box::new(|_cc| Box::new(Window::new())),
     );
 }
 
 struct Window {
-    x: i32,
-    y: i32,
-    z: i32,
-    addr: String,
-    recv: Receiver<Comms>,
-    client: Client,
+    muted: bool,
 }
 
 impl Window {
-    fn new(recv: Receiver<Comms>) -> Self {
+    fn new() -> Self {
         Self {
-            x: 0,
-            y: 0,
-            z: 0,
-            addr: String::from("localhost:7888"),
-            recv,
-            client: Client::new(),
+            muted: false,
         }
     }
 }
@@ -71,38 +55,42 @@ impl eframe::App for Window {
                 ui.small("Be the reason someone's country gets socialism.");
             });
             ui.end_row();
-    
-            if self.client.has_stream() {
-                self.client.run();
+
+            ui.add_space(10.0);
+
+            let connect_text = if SHARED.connected.read().is_ok_and(|x| *x) {
+                "Connected"
             } else {
-                ui.small("Enter your name");
-                ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut self.client.name);
-                });
-                
-                ui.small("Enter the server's ip:port");
-                ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut self.addr);
-                    if ui.button("connect").clicked() {
-                        match self.client.connect(&self.addr) {
-                            Ok(_) => {
-                                println!("INFO: CONNECTION ESTABLISHED")
-                            }
-                            Err(err) => {
-                                println!("WARNING: connection failed : {:?}", err);
-                                self.client.cancel();
-                            }
-                        }
-                    }
-                });
-            }
+                "Disconnected"
+            };
 
-            if let Ok(comms) = self.recv.try_recv() {
-                (self.x, self.y, self.z) = comms.into();
-            }
-
+            ui.label(connect_text);
             ui.add_space(1.0);
-            ui.label(format!("ORIGIN {}, {}, {}", self.x, self.y, self.z));
+
+            // todo: add connected status and other stuff :)
+
+            let text_mute = if self.muted { "Unmute" } else { "Mute" };
+
+            if ui.button(text_mute).clicked() {
+                let mute = unsafe { DISCORD.client.self_muted() };
+                if let Ok(mute) = mute {
+                    self.muted = mute;
+
+                    _ = unsafe { DISCORD.client.set_self_mute(!mute) };
+                }
+            }
+
+            
+
+            ui.add_space(10.0);
+            ui.label("consider running this command: ");
+            ui.text_edit_singleline(&mut String::from(
+                "script_client CodeCallback_GetPlayerName()",
+            ));
+
+            ui.add_space(10.0);
+            ui.small("REAL discord invite");
+            ui.hyperlink("https://discord.gg/S7xsKuuhYb");
         });
     }
 }
