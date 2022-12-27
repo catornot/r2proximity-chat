@@ -8,4 +8,5 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=manifest\\Resource.rc");
     println!("cargo:rerun-if-changed=manifest\\manifest.json");
+    println!("cargo:rerun-if-changed=manifest\\resource.h");
 }
