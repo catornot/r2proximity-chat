@@ -1,3 +1,6 @@
+#![feature(is_some_and)]
+
+use comms::SHARED;
 use once_cell::sync::Lazy;
 use rrplug::bindings::squirrelclasstypes::ScriptContext_CLIENT;
 use rrplug::prelude::*;
@@ -5,7 +8,6 @@ use rrplug::wrappers::northstar::ScriptVmType;
 use rrplug::wrappers::vector::Vector3;
 use rrplug::{sq_return_null, sqfunction, to_sq_string};
 use std::collections::HashMap;
-use std::sync::mpsc::{channel, Sender};
 use std::sync::RwLock;
 
 mod comms;
@@ -13,7 +15,6 @@ mod discord_client;
 mod window_backup4;
 
 use crate::window_backup4::init_window;
-use comms::Comms;
 
 use crate::discord_client::DiscordClient;
 
@@ -25,7 +26,6 @@ static mut DISCORD: Lazy<DiscordClient> = Lazy::new(DiscordClient::new);
 
 #[derive(Debug)]
 struct ProximityChat {
-    send: Option<Sender<Comms>>,
     valid_cl_vm: RwLock<bool>,
     // current_server: Option<String>, // how do I get this?
 }
@@ -33,7 +33,6 @@ struct ProximityChat {
 impl Plugin for ProximityChat {
     fn new() -> Self {
         Self {
-            send: None,
             valid_cl_vm: RwLock::new(false),
             // current_server: None,
         }
@@ -44,11 +43,8 @@ impl Plugin for ProximityChat {
         _ = plugin_data.register_sq_functions(info_push_player_name);
         _ = plugin_data.register_sq_functions(info_nothing00909);
 
-        let (send, recv) = channel::<Comms>();
-        self.send = Some(send);
-
         log::info!("starting a second window");
-        std::thread::spawn(move || init_window(recv));
+        std::thread::spawn(init_window);
 
         log::info!("setting up discord stuff");
         let client = unsafe { &DISCORD };
@@ -65,10 +61,6 @@ impl Plugin for ProximityChat {
 
         let client = unsafe { &mut *DISCORD };
 
-        let _send = self.send.as_ref().unwrap();
-
-        // let mut comms = Comms::default();
-
         loop {
             wait(1000);
 
@@ -80,6 +72,10 @@ impl Plugin for ProximityChat {
                     client.reset_vc();
                     continue;
                 }
+            }
+
+            if SHARED.connected.read().is_ok_and(|x| !*x) {
+                continue;
             }
 
             if let Ok(positions) = PLAYER_POS.read() {
@@ -114,6 +110,13 @@ impl Plugin for ProximityChat {
             return;
         }
 
+        loop {
+            if let Ok(mut lock) = self.valid_cl_vm.write() {
+                *lock = true;
+                break;
+            }
+        }
+
         match LOCAL_PLAYER.read() {
             Ok(local_player) => {
                 if *local_player == "None" {
@@ -145,6 +148,7 @@ impl Plugin for ProximityChat {
     }
 
     fn on_sqvm_destroyed(&self, _context: ScriptVmType) {
+        log::info!( "sqvm destroyed for proxichat {_context}" );
         loop {
             if let Ok(mut lock) = self.valid_cl_vm.write() {
                 *lock = false;

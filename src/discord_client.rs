@@ -1,11 +1,12 @@
 use discord_game_sdk::{
-    Cast, Comparison, Discord, EventHandler, LobbyKind,
-    LobbyMemberTransaction, LobbyTransaction, SearchQuery,
+    Cast, Comparison, Discord, EventHandler, LobbyKind, LobbyMemberTransaction, LobbyTransaction,
+    SearchQuery,
 };
 use rrplug::wrappers::vector::Vector3;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
+use crate::comms::SHARED;
 use crate::DISCORD;
 
 const APP_ID: i64 = 1056631161276874824;
@@ -100,6 +101,7 @@ impl DiscordClient {
                                         },
                                     );
                                     Self::write_id(lobby_id);
+                                    Self::update_connection_status(true)
                                 }
                                 Err(err) => {
                                     log::error!("I would die : {err}");
@@ -125,6 +127,7 @@ impl DiscordClient {
                                         },
                                     );
                                     Self::write_id(lobby_id);
+                                    Self::update_connection_status(true)
                             }
                             Err(err) => {
                                 log::info!("everythuingghs bikw: {err}");
@@ -195,7 +198,7 @@ impl DiscordClient {
                 continue;
             }
 
-            let px = player_pos.x; 
+            let px = player_pos.x;
             let py = player_pos.y;
 
             let x = (lx - px).abs();
@@ -220,6 +223,14 @@ impl DiscordClient {
     fn get_id() -> i64 {
         let client = unsafe { &mut *DISCORD };
         client.client.current_user().unwrap().id()
+    }
+
+    fn update_connection_status(is_connected: bool) {
+        loop {
+            if let Ok(mut lock) = SHARED.connected.write() {
+                *lock = is_connected
+            }
+        }
     }
 }
 pub struct DiscordEvent;
@@ -246,7 +257,12 @@ impl EventHandler for DiscordEvent {
         }
     }
 
-    fn on_member_disconnect(&mut self, _discord: &Discord<'_, Self>, _lobby_id: i64, member_id: i64) {
+    fn on_member_disconnect(
+        &mut self,
+        _discord: &Discord<'_, Self>,
+        _lobby_id: i64,
+        member_id: i64,
+    ) {
         log::info!("member disconnect callled");
         let members = unsafe { &mut DISCORD.members };
 
@@ -258,6 +274,16 @@ impl EventHandler for DiscordEvent {
             rrplug::prelude::wait(10);
         }
     }
+
+    // maybe use this instead of on_member_update, more testing needed :|
+    // fn on_member_connect(
+    //         &mut self,
+    //         discord: &Discord<'_, Self>,
+    //         lobby_id: discord_game_sdk::LobbyID,
+    //         member_id: discord_game_sdk::UserID,
+    //     ) {
+
+    // }
 }
 
 // fn brute_force_remove() {} // todo

@@ -1,5 +1,4 @@
-use crate::{comms::Comms, DISCORD};
-use std::sync::mpsc::Receiver;
+use crate::{DISCORD, comms::SHARED};
 
 use eframe::{egui, epaint::Vec2, EventLoopBuilderHook, RequestRepaintEvent};
 use egui_winit::winit::{
@@ -8,7 +7,7 @@ use egui_winit::winit::{
 
 type EventLoopBuild = Option<EventLoopBuilderHook>;
 
-pub fn init_window(recv: Receiver<Comms>) {
+pub fn init_window() {
     let func = |event_loop_builder: &mut EventLoopBuilder<RequestRepaintEvent>| {
         event_loop_builder.with_any_thread(true);
     };
@@ -30,25 +29,17 @@ pub fn init_window(recv: Receiver<Comms>) {
     eframe::run_native(
         "Monarch ProxiChat",
         options,
-        Box::new(|_cc| Box::new(Window::new(recv))),
+        Box::new(|_cc| Box::new(Window::new())),
     );
 }
 
 struct Window {
-    x: i32,
-    y: i32,
-    z: i32,
-    recv: Receiver<Comms>,
     muted: bool,
 }
 
 impl Window {
-    fn new(recv: Receiver<Comms>) -> Self {
+    fn new() -> Self {
         Self {
-            x: 0,
-            y: 0,
-            z: 0,
-            recv,
             muted: false,
         }
     }
@@ -67,13 +58,18 @@ impl eframe::App for Window {
 
             ui.add_space(10.0);
 
+            let connect_text = if SHARED.connected.read().is_ok_and(|x| *x) {
+                "Connected"
+            } else {
+                "Disconnected"
+            };
+
+            ui.label(connect_text);
+            ui.add_space(1.0);
+
             // todo: add connected status and other stuff :)
 
-            let text_mute = if self.muted {
-                "Mute"
-            } else {
-                "Unmute"
-            };
+            let text_mute = if self.muted { "Unmute" } else { "Mute" };
 
             if ui.button(text_mute).clicked() {
                 let mute = unsafe { DISCORD.client.self_muted() };
@@ -84,6 +80,8 @@ impl eframe::App for Window {
                 }
             }
 
+            
+
             ui.add_space(10.0);
             ui.label("consider running this command: ");
             ui.text_edit_singleline(&mut String::from(
@@ -93,14 +91,6 @@ impl eframe::App for Window {
             ui.add_space(10.0);
             ui.small("REAL discord invite");
             ui.hyperlink("https://discord.gg/S7xsKuuhYb");
-
-            if let Ok(comms) = self.recv.try_recv() {
-                (self.x, self.y, self.z) = comms.into();
-            }
-
-            ui.add_space(5.0);
-            ui.small("whar");
-            ui.label(format!("ORIGIN {}, {}, {}", self.x, self.y, self.z));
         });
     }
 }
