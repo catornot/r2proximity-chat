@@ -1,2 +1,0 @@
-I took the code for the render from https://github.com/LU15W1R7H/eww
-since I couldn't use get the crate to work :(

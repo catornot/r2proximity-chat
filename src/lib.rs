@@ -12,9 +12,9 @@ use std::sync::RwLock;
 
 mod comms;
 mod discord_client;
-mod window_backup4;
+mod window;
 
-use crate::window_backup4::init_window;
+use crate::window::init_window;
 
 use crate::discord_client::DiscordClient;
 
