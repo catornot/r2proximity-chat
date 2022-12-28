@@ -8,12 +8,14 @@ use rrplug::wrappers::northstar::ScriptVmType;
 use rrplug::wrappers::vector::Vector3;
 use rrplug::{sq_return_null, sqfunction, to_sq_string};
 use std::collections::HashMap;
+use std::sync::mpsc::{channel, Receiver};
 use std::sync::RwLock;
 
 mod comms;
 mod discord_client;
 mod window;
 
+use crate::comms::SendComms;
 use crate::window::init_window;
 
 use crate::discord_client::DiscordClient;
@@ -27,6 +29,7 @@ static mut DISCORD: Lazy<DiscordClient> = Lazy::new(DiscordClient::new);
 #[derive(Debug)]
 struct ProximityChat {
     valid_cl_vm: RwLock<bool>,
+    recv: Option<Receiver<SendComms>>,
     // current_server: Option<String>, // how do I get this?
 }
 
@@ -34,6 +37,7 @@ impl Plugin for ProximityChat {
     fn new() -> Self {
         Self {
             valid_cl_vm: RwLock::new(false),
+            recv: None,
             // current_server: None,
         }
     }
@@ -41,10 +45,13 @@ impl Plugin for ProximityChat {
     fn initialize(&mut self, plugin_data: &PluginData) {
         _ = plugin_data.register_sq_functions(info_push_player_pos);
         _ = plugin_data.register_sq_functions(info_push_player_name);
-        _ = plugin_data.register_sq_functions(info_nothing00909);
+
+        let (send, recv) = channel::<SendComms>();
+
+        self.recv = Some(recv);
 
         log::info!("starting a second window");
-        std::thread::spawn(init_window);
+        std::thread::spawn(move || init_window(send));
 
         log::info!("setting up discord stuff");
         let client = unsafe { &DISCORD };
@@ -60,11 +67,22 @@ impl Plugin for ProximityChat {
         };
 
         let client = unsafe { &mut *DISCORD };
+        let recv = self.recv.as_ref().unwrap();
 
         loop {
             wait(1000);
 
             _ = client.tick();
+
+            if let Ok(comms) = recv.try_recv() {
+                match client.client.set_self_mute(comms.mute) {
+                    Ok(_) => log::info!("set muted to {}", comms.mute),
+                    Err(e) => log::error!(
+                        "unable to set muted to {}; the window is now desynced; {e}",
+                        comms.mute
+                    ),
+                }
+            }
 
             if let Ok(lock) = self.valid_cl_vm.read() {
                 if !*lock {
@@ -95,7 +113,7 @@ impl Plugin for ProximityChat {
                 (sq_functions.sq_schedule_call_external)(
                     ScriptContext_CLIENT,
                     func_name.as_ptr(),
-                    nothing00909,
+                    pop_function,
                 )
             }
         }
@@ -132,23 +150,9 @@ impl Plugin for ProximityChat {
         if let Ok(mut lock) = self.valid_cl_vm.write() {
             *lock = true
         }
-
-        let sq_functions = unsafe { SQFUNCTIONS.client.as_ref().unwrap() };
-
-        let func_name = to_sq_string!("CodeCallback_GetPlayerName");
-
-        // whar why is this not getting called?
-        unsafe {
-            (sq_functions.sq_schedule_call_external)(
-                ScriptContext_CLIENT,
-                func_name.as_ptr(),
-                nothing00909,
-            )
-        }
     }
 
     fn on_sqvm_destroyed(&self, _context: ScriptVmType) {
-        log::info!( "sqvm destroyed for proxichat {_context}" );
         loop {
             if let Ok(mut lock) = self.valid_cl_vm.write() {
                 *lock = false;
@@ -178,11 +182,11 @@ fn push_player_name(name: String) {
             break;
         }
     }
-    log::error!("name is set to {name}");
+    log::info!("name is set to {name}");
     sq_return_null!()
 }
 
 #[sqfunction(VM=Client)]
-fn nothing00909() {
+fn pop_function() {
     sq_return_null!()
 }

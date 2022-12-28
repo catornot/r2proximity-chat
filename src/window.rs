@@ -1,4 +1,6 @@
-use crate::{DISCORD, comms::SHARED};
+use std::sync::mpsc::Sender;
+
+use crate::comms::{SendComms, SHARED};
 
 use eframe::{egui, epaint::Vec2, EventLoopBuilderHook, RequestRepaintEvent};
 use egui_winit::winit::{
@@ -7,7 +9,7 @@ use egui_winit::winit::{
 
 type EventLoopBuild = Option<EventLoopBuilderHook>;
 
-pub fn init_window() {
+pub fn init_window(send: Sender<SendComms>) {
     let func = |event_loop_builder: &mut EventLoopBuilder<RequestRepaintEvent>| {
         event_loop_builder.with_any_thread(true);
     };
@@ -29,19 +31,18 @@ pub fn init_window() {
     eframe::run_native(
         "Monarch ProxiChat",
         options,
-        Box::new(|_cc| Box::new(Window::new())),
+        Box::new(move |_cc| Box::new(Window::new(send))),
     );
 }
 
 struct Window {
     muted: bool,
+    send: Sender<SendComms>,
 }
 
 impl Window {
-    fn new() -> Self {
-        Self {
-            muted: false,
-        }
+    fn new(send: Sender<SendComms>) -> Self {
+        Self { muted: false, send }
     }
 }
 
@@ -67,20 +68,15 @@ impl eframe::App for Window {
             ui.label(connect_text);
             ui.add_space(1.0);
 
-            // todo: add connected status and other stuff :)
+            // // todo: add connected status and other stuff :)
 
             let text_mute = if self.muted { "Unmute" } else { "Mute" };
 
             if ui.button(text_mute).clicked() {
-                let mute = unsafe { DISCORD.client.self_muted() };
-                if let Ok(mute) = mute {
-                    self.muted = mute;
+                self.muted = !self.muted;
 
-                    _ = unsafe { DISCORD.client.set_self_mute(!mute) };
-                }
+                self.send.send(SendComms { mute: self.muted }).unwrap();
             }
-
-            
 
             ui.add_space(10.0);
             ui.label("consider running this command: ");

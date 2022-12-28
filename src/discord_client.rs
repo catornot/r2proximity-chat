@@ -77,9 +77,9 @@ impl DiscordClient {
                 .limit(1),
             move |discord, result| match result {
                 Ok(_) => {
-                    log::info!("found a lobby for this server joining it");
-
                     if discord.lobby_count() == 0 {
+                        log::info!("no lobbies found creating a new one");
+
                         discord.create_lobby(
                             LobbyTransaction::new()
                                 .capacity(1000)
@@ -111,6 +111,8 @@ impl DiscordClient {
                             },
                         )
                     } else {
+                        log::info!("found a lobby for this server joining it");
+
                         let lobby_id = discord.lobby_id_at(0).unwrap();
                         discord.connect_lobby_voice(lobby_id, move |discord, result| match result {
                             Ok(_) => {
