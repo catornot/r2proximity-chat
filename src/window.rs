@@ -29,7 +29,7 @@ pub fn init_window(send: Sender<SendComms>) {
     };
 
     eframe::run_native(
-        "Monarch ProxiChat",
+        "Murzik's Proximity chat",
         options,
         Box::new(move |_cc| Box::new(Window::new(send))),
     );
@@ -50,10 +50,10 @@ impl eframe::App for Window {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.centered(|ui| {
-                ui.heading("Monarch ProxiChat");
+                ui.heading("Murzik's Proximity chat");
             });
             ui.centered(|ui| {
-                ui.small("Be the reason someone's country gets socialism.");
+                ui.small("Pet all the cats you see!");
             });
             ui.end_row();
 
@@ -70,7 +70,7 @@ impl eframe::App for Window {
 
             // // todo: add connected status and other stuff :)
 
-            let text_mute = if self.muted { "Unmute" } else { "Mute" };
+            let text_mute = if self.muted { "Unmute" } else { " Mute " };
 
             if ui.button(text_mute).clicked() {
                 self.muted = !self.muted;

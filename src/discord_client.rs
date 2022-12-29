@@ -47,7 +47,7 @@ impl DiscordClient {
     pub fn tick(&mut self) -> Result<(), ()> {
         match self.client.run_callbacks() {
             Ok(_) => Ok(()),
-            Err(_) => Err(()),
+            Err(err) => Err(log::error!("unable to run callbacks because of {err}")),
         }
     }
 
@@ -230,7 +230,8 @@ impl DiscordClient {
     fn update_connection_status(is_connected: bool) {
         loop {
             if let Ok(mut lock) = SHARED.connected.write() {
-                *lock = is_connected
+                *lock = is_connected;
+                break;
             }
         }
     }

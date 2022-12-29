@@ -71,7 +71,7 @@ impl Plugin for ProximityChat {
 
         loop {
             wait(1000);
-
+            
             _ = client.tick();
 
             if let Ok(comms) = recv.try_recv() {
@@ -84,27 +84,29 @@ impl Plugin for ProximityChat {
                 }
             }
 
-            if let Ok(lock) = self.valid_cl_vm.read() {
-                if !*lock {
-                    // log::info!("reseting vc volume");
-                    client.reset_vc();
-                    continue;
-                }
-            }
-
             if SHARED.connected.read().is_ok_and(|x| !*x) {
                 continue;
             }
 
-            if let Ok(positions) = PLAYER_POS.read() {
-                log::info!("{positions:?}");
+            if let Ok(lock) = self.valid_cl_vm.read() {
+                if !*lock {
+                    client.reset_vc();
+                    continue;
+                }
+            }
+            
+            match PLAYER_POS.read() {
+                Ok(positions) => {
+                    // log::info!("{positions:?}");
 
-                if let Ok(local_player) = LOCAL_PLAYER.read() {
-                    if let Some(local) = positions.get(&*local_player) {
-                        client.update_player_volumes(local, &positions);
-                        log::info!("updating volume");
+                    if let Ok(local_player) = LOCAL_PLAYER.read() {
+                        if let Some(local) = positions.get(&*local_player) {
+                            client.update_player_volumes(local, &positions);
+                            // log::info!("updating volume");
+                        }
                     }
                 }
+                Err(err) => log::error!("unable to acces player positions {err}"),
             }
 
             let func_name = to_sq_string!("CodeCallback_GetPlayersPostion");
@@ -135,20 +137,25 @@ impl Plugin for ProximityChat {
             }
         }
 
+        if let Ok(mut lock) = self.valid_cl_vm.write() {
+            *lock = true
+        }
+        
+        if SHARED.connected.read().is_ok_and(|x| *x) {
+            return;
+        }
+
         match LOCAL_PLAYER.read() {
             Ok(local_player) => {
                 if *local_player == "None" {
-                    log::error!("player name isn't registered yet so connection is canceled");
+                    log::warn!("player name isn't registered yet so connection is canceled");
                 } else {
+                    log::info!("auto connecting to {}", "catornot-test");
                     let client = unsafe { &DISCORD };
                     client.join("catornot-test".to_owned(), local_player.clone());
                 }
             }
             Err(err) => log::error!("unable to get lock : {err:?}"),
-        }
-
-        if let Ok(mut lock) = self.valid_cl_vm.write() {
-            *lock = true
         }
     }
 
