@@ -23,4 +23,5 @@ impl Default for SharedComms {
 #[derive(Debug,Default)]
 pub struct SendComms {
     pub mute: bool,
+    pub deaf: bool
 }

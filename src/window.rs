@@ -37,12 +37,17 @@ pub fn init_window(send: Sender<SendComms>) {
 
 struct Window {
     muted: bool,
+    deafen: bool,
     send: Sender<SendComms>,
 }
 
 impl Window {
     fn new(send: Sender<SendComms>) -> Self {
-        Self { muted: false, send }
+        Self {
+            muted: false,
+            deafen: false,
+            send,
+        }
     }
 }
 
@@ -71,18 +76,30 @@ impl eframe::App for Window {
             // // todo: add connected status and other stuff :)
 
             let text_mute = if self.muted { "Unmute" } else { " Mute " };
+            let text_deafen = if self.deafen { "Undeafen" } else { " Deafen " };
 
-            if ui.button(text_mute).clicked() {
-                self.muted = !self.muted;
+            // no mutable stuff :D
+            let saved_mute = self.muted;
+            let saved_deafen = self.deafen;
 
-                self.send.send(SendComms { mute: self.muted }).unwrap();
+            ui.horizontal(|ui| {
+                if ui.button(text_mute).clicked() {
+                    self.muted = !self.muted;
+                }
+
+                if ui.button(text_deafen).clicked() {
+                    self.deafen = !self.deafen;
+                }
+            });
+
+            if saved_deafen != self.deafen || saved_mute != self.muted {
+                self.send
+                    .send(SendComms {
+                        mute: self.muted,
+                        deaf: self.deafen,
+                    })
+                    .unwrap();
             }
-
-            ui.add_space(10.0);
-            ui.label("consider running this command: ");
-            ui.text_edit_singleline(&mut String::from(
-                "script_client CodeCallback_GetPlayerName()",
-            ));
 
             ui.add_space(10.0);
             ui.small("REAL discord invite");

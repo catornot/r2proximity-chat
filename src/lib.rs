@@ -82,6 +82,14 @@ impl Plugin for ProximityChat {
                         comms.mute
                     ),
                 }
+
+                match client.client.set_self_deaf(comms.deaf) {
+                    Ok(_) => log::info!("set deaf to {}", comms.deaf),
+                    Err(e) => log::error!(
+                        "unable to set deaf to {}; the window is now desynced; {e}",
+                        comms.deaf
+                    ),
+                }
             }
 
             if SHARED.connected.read().is_ok_and(|x| !*x) {
