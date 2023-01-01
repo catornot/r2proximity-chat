@@ -249,6 +249,7 @@ impl EventHandler for DiscordEvent {
 
                 loop {
                     if let Ok(mut members) = members.write() {
+                        log::info!("{} joined the lobby :)", name.clone());
                         members.insert(member_id, name.clone());
                     }
                     rrplug::prelude::wait(10);
@@ -271,7 +272,9 @@ impl EventHandler for DiscordEvent {
 
         loop {
             if let Ok(mut members) = members.write() {
-                members.remove(&member_id);
+                if let Some(name) = members.remove(&member_id) {
+                    log::info!("{name} left the lobby :(")
+                }
                 break;
             }
             rrplug::prelude::wait(10);
