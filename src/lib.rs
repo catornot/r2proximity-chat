@@ -20,6 +20,8 @@ use crate::window::init_window;
 
 use crate::discord_client::DiscordClient;
 
+const BLACKLIST: [&str;1] = ["Fragyeeter"];
+
 static PLAYER_POS: Lazy<RwLock<HashMap<String, Vector3>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 static LOCAL_PLAYER: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new("None".to_string()));
@@ -191,6 +193,11 @@ fn push_player_pos(name: String, pos: Vector3) {
 
 #[sqfunction(VM=Client,ExportName=ProxiChatPushPlayerName)]
 fn push_player_name(name: String) {
+
+    if BLACKLIST.contains(&&name[..]) {
+        sq_return_null!()
+    }
+
     loop {
         if let Ok(mut lock) = LOCAL_PLAYER.write() {
             *lock = name.clone();

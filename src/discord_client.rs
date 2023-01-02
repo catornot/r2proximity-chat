@@ -23,7 +23,9 @@ pub struct DiscordClient {
 
 impl DiscordClient {
     pub fn new() -> Self {
-        let c = Discord::new(APP_ID).expect("failed to load discord rpc; Is your discord running?");
+        let mut c = Discord::new(APP_ID).expect("failed to load discord rpc; Is your discord running?");
+        
+        *c.event_handler_mut() = Some(DiscordEvent::default());
 
         // c.clear_activity(|discord, _| {
         //     discord.update_activity(
@@ -75,70 +77,125 @@ impl DiscordClient {
                     Cast::String,
                 )
                 .limit(1),
-            move |discord, result| match result {
-                Ok(_) => {
-                    if discord.lobby_count() == 0 {
-                        log::info!("no lobbies found creating a new one");
+            move |discord, result| 
+            match result {
+                Ok(_) if discord.lobby_count() == 0 => {
+                    log::info!("no lobbies found creating a new one");
 
-                        discord.create_lobby(
-                            LobbyTransaction::new()
-                                .capacity(1000)
-                                .kind(LobbyKind::Public)
-                                .add_metadata("name".to_string(), server_name.clone()),
-                            |discord, result| match result {
-                                Ok(lobby) => {
-                                    log::info!("aya we have new lobby");
-                                    let lobby_id = lobby.id();
-                                    discord.update_member(
-                                        lobby_id,
-                                        Self::get_id(),
-                                        LobbyMemberTransaction::new().add_metadata(NAME_KEY.to_string(), nickname),
-                                        |_,result| {
-                                            if let Err(err) = result {
-                                                log::error!("couldn't set nickname on join; people won't hear; pls report this issue to catornot :D");
+                    discord.create_lobby(
+                        LobbyTransaction::new()
+                            .capacity(1000)
+                            .kind(LobbyKind::Public)
+                            .add_metadata("name".to_string(), server_name.clone()),
+                        |discord, result| 
+                        match result {
+                            Ok(lobby) => {
+                                log::info!("yay we have new lobby");
+
+                                let lobby_id = lobby.id();
+
+                                discord.connect_lobby_voice(lobby_id, |_discord, result|
+                                    match result {
+                                        Ok(_) => {
+                                            log::info!("connected to a vc");
+                                            Self::update_connection_status(true)
+                                        },
+                                        Err(err) => {
+                                            log::error!("failed to connected to vc {err}");
+                                            Self::update_connection_status(false)
+                                        }
+                                    }
+                                );
+
+                                discord.update_lobby(lobby_id, LobbyTransaction::new()
+                                    .add_metadata("secret".to_string(), lobby.secret().to_string()), |_discord, result| {
+                                        match result {
+                                            Ok(_) => {},
+                                            Err(err) => log::error!("failed to set lobby secret people won't be able to connect D: {err}"),
+                                        }
+                                    }
+                                );
+
+                                discord.update_member(
+                                    lobby_id,
+                                    Self::get_id(),
+                                    LobbyMemberTransaction::new().add_metadata(NAME_KEY.to_string(), nickname),
+                                    |_,result| {
+                                        match result {
+                                            Ok(_) => log::info!("nickname updated in the lobby :)"),
+                                            Err(err) => {
+                                                log::error!("couldn't set nickname on join; people won't hear you; pls report this issue to catornot :D");
                                                 log::error!("{err}")
                                             }
-                                        },
-                                    );
-                                    Self::write_id(lobby_id);
-                                    Self::update_connection_status(true)
-                                }
-                                Err(err) => {
-                                    log::error!("I would die : {err}");
-                                    rrplug::prelude::wait(10000);
-                                    unsafe { DISCORD.join(server_name, nickname) }
-                                }
-                            },
-                        )
-                    } else {
-                        log::info!("found a lobby for this server joining it");
+                                        }
+                                    },
+                                );
 
-                        let lobby_id = discord.lobby_id_at(0).unwrap();
-                        discord.connect_lobby_voice(lobby_id, move |discord, result| match result {
-                            Ok(_) => {
-                                log::info!("we joined a lobby yupppppppie");
-                                    discord.update_member(
-                                        lobby_id,
-                                        Self::get_id(),
-                                        LobbyMemberTransaction::new().add_metadata(NAME_KEY.to_string(), nickname),
-                                        |_,result| {
-                                            if let Err(err) = result {
-                                                log::error!("couldn't set nickname on join; people won't hear; pls report this issue to catornot :D");
-                                                log::error!("{err}")
-                                            }
-                                        },
-                                    );
-                                    Self::write_id(lobby_id);
-                                    Self::update_connection_status(true)
+                                Self::write_id(lobby_id);
+                                Self::add_connected_members(discord,lobby_id);
                             }
                             Err(err) => {
-                                log::info!("everythuingghs bikw: {err}");
+                                log::error!("lobby creation failed {err}");
                                 rrplug::prelude::wait(10000);
                                 unsafe { DISCORD.join(server_name, nickname) }
                             }
-                        });
-                    }
-                }
+                        }
+                    )
+                },
+                Ok(_) => {
+                    log::info!("found a lobby for this server joining it");
+
+                    let lobby_id = discord.lobby_id_at(0).unwrap();
+
+                    let secret = match discord.lobby_metadata(lobby_id, "secret"){
+                        Ok(secret) => secret,
+                        Err(err) => {
+                            log::error!("unable to get secret from the lobby : {err}");
+                            return;
+                        },
+                    }; 
+
+                    discord.connect_lobby(lobby_id, secret, move |discord, result| 
+                        match result {
+                            Ok(_) => {
+                                log::info!("we joined a lobby yupppppppie");
+
+                                    discord.connect_lobby_voice(lobby_id, |_discord, result| 
+                                        match result {
+                                            Ok(_) => {
+                                                log::info!("connected to a vc");
+                                                Self::update_connection_status(true)
+                                            },
+                                            Err(err) => {
+                                                log::error!("failed to connected to a vc {err}");
+                                                Self::update_connection_status(false)
+                                            }
+                                        }
+                                    );
+                                    
+                                    discord.update_member(
+                                        lobby_id,
+                                        Self::get_id(),
+                                        LobbyMemberTransaction::new().add_metadata(NAME_KEY.to_string(), nickname),
+                                        |_,result| {
+                                            if let Err(err) = result {
+                                                log::error!("couldn't set nickname on join; people won't hear you; pls report this issue to catornot :D");
+                                                log::error!("{err}")
+                                            }
+                                        },
+                                    );
+
+                                    Self::write_id(lobby_id);
+                                    Self::add_connected_members(discord,lobby_id);
+                            }
+                            Err(err) => {
+                                log::info!("couldn't connect to the lobby: {err}");
+                                rrplug::prelude::wait(10000);
+                                unsafe { DISCORD.join(server_name, nickname) }
+                            }
+                        }
+                    );
+                },
                 Err(_) => {
                     log::info!("failed to get lobbies; retrying in 10 seconds");
                     rrplug::prelude::wait(10000);
@@ -149,17 +206,13 @@ impl DiscordClient {
     }
 
     pub fn reset_vc(&self) {
-        if let Ok(lock) = self.lobby_id.read() {
-            if let Some(lobby_id) = *lock {
-                for id in self
-                    .client
-                    .iter_lobby_member_ids(lobby_id)
-                    .unwrap()
-                    .filter_map(|i| i.ok())
-                {
-                    _ = self.client.set_local_volume(id, 100);
-                }
-            }
+        let members = match self.members.read() {
+            Ok(m) => m,
+            _ => return,
+        };
+
+        for id in members.keys() {
+            _ = self.client.set_local_volume(*id, 100);
         }
     }
 
@@ -169,27 +222,34 @@ impl DiscordClient {
             _ => return,
         };
 
-        let lobby_id = match self.lobby_id.read() {
-            Ok(id) => match *id {
-                Some(id) => id,
-                None => return,
-            },
-            _ => return,
-        };
+        // let lobby_id = match self.lobby_id.read() {
+        //     Ok(id) => match *id {
+        //         Some(id) => id,
+        //         None => return,
+        //     },
+        //     _ => return,
+        // };
 
         let lx = local_pos.x;
         let ly = local_pos.y;
 
-        for id in self
-            .client
-            .iter_lobby_member_ids(lobby_id)
-            .unwrap()
-            .filter_map(|i| i.ok())
+        for (id, player_name) in members.iter()
         {
-            let player_name = match members.get(&id) {
-                Some(name) => name,
-                None => continue,
-            };
+            log::info!("we have a player with id {id}");
+            // log::info!(
+            //     "number of meta stuff {:?}",
+            //     self.client.lobby_member_metadata_count(lobby_id, *id)
+            // );
+            // let player_name = match self.client.lobby_member_metadata(lobby_id, *id, NAME_KEY) {
+            //     Ok(n) => n,
+            //     Err(_) => continue,
+            // };
+            // let player_name = match members.get(&id) {
+            //     Some(name) => name,
+            //     None => continue,
+            // };
+            log::info!("we have a player with name {}", player_name.clone());
+            log::info!("postions: {positions:?}");
 
             let player_pos = match positions.get(player_name) {
                 Some(pos) => pos,
@@ -197,6 +257,7 @@ impl DiscordClient {
             };
 
             if player_pos == local_pos {
+                log::info!("found the same player");
                 continue;
             }
 
@@ -207,8 +268,10 @@ impl DiscordClient {
             let y = (ly - py).abs();
 
             let dis = (y.powi(2) + x.powi(2)).sqrt() as i32;
-            let volume = ((-dis / 2) + 200).clamp(200, 0);
-            _ = self.client.set_local_volume(id, volume.try_into().unwrap()); // how could it possible fail?
+            let volume = ((-dis / 2) + 500).clamp(0, 200);
+            log::info!("setting volume : {volume}");
+
+            _ = self.client.set_local_volume(*id, volume.try_into().unwrap()); // how could it possible fail?
         }
     }
 
@@ -235,7 +298,41 @@ impl DiscordClient {
             }
         }
     }
+
+    fn add_connected_members(discord: &Discord<'_, DiscordEvent>, lobby_id: i64) {
+
+        for index in 0..discord.lobby_member_count(lobby_id).unwrap() {
+            let member_id = match discord.lobby_member_id_at(lobby_id, index) {
+                Ok(i) => i,
+                Err(err) => {
+                    log::error!("a member couldn't be fetched; pls report to catornot; {err}");
+                    return;
+                },
+            };
+
+            let name = discord.lobby_member_metadata(lobby_id, member_id, NAME_KEY.to_string());
+            match name {
+                Ok(name) => {
+                    let members = unsafe { &mut DISCORD.members };
+
+                    loop {
+                        if let Ok(mut members) = members.write() {
+                            log::info!("{} is in the vc :)", name);
+                            members.insert(member_id, name);
+                            break;
+                        }
+                        rrplug::prelude::wait(10);
+                    }
+                }
+                Err(err) => log::warn!(
+                    "the player that just connected to the lobby doesn't have a name whar : {err}"
+                ),
+            }
+        }
+    }
 }
+
+#[derive(Default)]
 pub struct DiscordEvent;
 
 impl EventHandler for DiscordEvent {
@@ -249,13 +346,14 @@ impl EventHandler for DiscordEvent {
 
                 loop {
                     if let Ok(mut members) = members.write() {
-                        log::info!("{} joined the lobby :)", name.clone());
-                        members.insert(member_id, name.clone());
+                        log::info!("{} joined the lobby :)", name);
+                        members.insert(member_id, name);
+                        break;
                     }
                     rrplug::prelude::wait(10);
                 }
             }
-            Err(err) => log::error!(
+            Err(err) => log::warn!(
                 "the player that just connected to the lobby doesn't have a name whar : {err}"
             ),
         }
@@ -272,24 +370,13 @@ impl EventHandler for DiscordEvent {
 
         loop {
             if let Ok(mut members) = members.write() {
-                if let Some(name) = members.remove(&member_id) {
-                    log::info!("{name} left the lobby :(")
+                match members.remove(&member_id) { 
+                    Some(name) => log::info!("{name} left the lobby :("),
+                    None => log::info!("someone left the lobby"), 
                 }
                 break;
             }
             rrplug::prelude::wait(10);
         }
     }
-
-    // maybe use this instead of on_member_update, more testing needed :|
-    // fn on_member_connect(
-    //         &mut self,
-    //         discord: &Discord<'_, Self>,
-    //         lobby_id: discord_game_sdk::LobbyID,
-    //         member_id: discord_game_sdk::UserID,
-    //     ) {
-
-    // }
 }
-
-// fn brute_force_remove() {} // todo
