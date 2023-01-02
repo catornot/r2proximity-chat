@@ -56,11 +56,9 @@ impl eframe::App for Window {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.centered(|ui| {
                 ui.heading("Murzik's Proximity chat");
-            });
-            ui.centered(|ui| {
+                ui.end_row();
                 ui.small("Pet all the cats you see!");
             });
-            ui.end_row();
 
             ui.add_space(10.0);
 
@@ -101,9 +99,18 @@ impl eframe::App for Window {
                     .unwrap();
             }
 
-            ui.add_space(10.0);
-            ui.small("REAL discord invite");
-            ui.hyperlink("https://discord.gg/S7xsKuuhYb");
+            ui.add_space(5.0);
+
+            ui.collapsing("Members", |ui| {
+                let members = match SHARED.members.try_write() {
+                    Ok(lock) => lock,
+                    Err(_) => return,
+                };
+
+                for member in members.iter() {
+                    ui.label(member);
+                }
+            })
         });
     }
 }

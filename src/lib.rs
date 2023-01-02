@@ -20,7 +20,7 @@ use crate::window::init_window;
 
 use crate::discord_client::DiscordClient;
 
-const BLACKLIST: [&str;1] = ["Fragyeeter"];
+const BLACKLIST: [&str; 1] = ["Fragyeeter"];
 
 static PLAYER_POS: Lazy<RwLock<HashMap<String, Vector3>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
@@ -73,7 +73,7 @@ impl Plugin for ProximityChat {
 
         loop {
             wait(1000);
-            
+
             _ = client.tick();
 
             if let Ok(comms) = recv.try_recv() {
@@ -104,7 +104,7 @@ impl Plugin for ProximityChat {
                     continue;
                 }
             }
-            
+
             match PLAYER_POS.read() {
                 Ok(positions) => {
                     // log::info!("{positions:?}");
@@ -117,6 +117,16 @@ impl Plugin for ProximityChat {
                     }
                 }
                 Err(err) => log::error!("unable to acces player positions {err}"),
+            }
+
+            if let Ok(lock) = client.members.try_read() {
+                if let Ok(mut lock_members) = SHARED.members.write() {
+                    // expensive :(
+                    let members: Vec<String> =
+                        (*lock.values().cloned().collect::<Vec<_>>()).to_vec();
+                    
+                    *lock_members = members
+                }
             }
 
             let func_name = to_sq_string!("CodeCallback_GetPlayersPostion");
@@ -150,7 +160,7 @@ impl Plugin for ProximityChat {
         if let Ok(mut lock) = self.valid_cl_vm.write() {
             *lock = true
         }
-        
+
         if SHARED.connected.read().is_ok_and(|x| *x) {
             return;
         }
@@ -193,7 +203,6 @@ fn push_player_pos(name: String, pos: Vector3) {
 
 #[sqfunction(VM=Client,ExportName=ProxiChatPushPlayerName)]
 fn push_player_name(name: String) {
-
     if BLACKLIST.contains(&&name[..]) {
         sq_return_null!()
     }
