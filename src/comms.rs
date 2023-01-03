@@ -14,7 +14,7 @@ impl Default for SharedComms {
     fn default() -> Self {
         Self {
             connected: RwLock::new(false),
-            server_name: RwLock::new("catornot-test".to_string()),
+            server_name: RwLock::new("unconnected".to_string()),
             members: RwLock::new(vec![]),
         }
     }
@@ -23,5 +23,7 @@ impl Default for SharedComms {
 #[derive(Debug,Default)]
 pub struct SendComms {
     pub mute: bool,
-    pub deaf: bool
+    pub deaf: bool,
+    pub name_overwrite: Option<String>,
+    pub reset_server_name: bool
 }

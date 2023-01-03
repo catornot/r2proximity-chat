@@ -20,7 +20,7 @@ use crate::window::init_window;
 
 use crate::discord_client::DiscordClient;
 
-const BLACKLIST: [&str; 2] = ["Fragyeeter","R8GOD"];
+const BLACKLIST: [&str; 2] = ["Fragyeeter", "R8GOD"];
 
 static PLAYER_POS: Lazy<RwLock<HashMap<String, Vector3>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
@@ -93,27 +93,53 @@ impl Plugin for ProximityChat {
                         comms.deaf
                     ),
                 }
+
+                if self.valid_cl_vm.try_read().is_ok_and(|x| !*x) {
+                    continue;
+                }
+
+                if comms.name_overwrite.is_some() && SHARED.connected.try_read().is_ok_and(|x| *x) {
+                    let server_name = comms.name_overwrite.unwrap();
+                    log::info!("got server name overwrite {server_name}");
+                    log::warn!("spamming this may result in a crash");
+
+                    if let Ok(mut lock) = SHARED.server_name.try_write() {
+                        if *lock != server_name {
+                            disconnect()
+                        }
+
+                        *lock = server_name;
+                    }
+                }
+
+                if comms.reset_server_name {
+                    let func_name = to_sq_string!("CodeCallback_PushServerName");
+                    unsafe {
+                        (sq_functions.sq_schedule_call_external)(
+                            ScriptContext_CLIENT,
+                            func_name.as_ptr(),
+                            pop_function,
+                        )
+                    }
+                }
             }
 
-            if SHARED.connected.read().is_ok_and(|x| !*x) {
+            if SHARED.connected.try_read().is_ok_and(|x| !*x) {
                 continue;
             }
 
-            if let Ok(lock) = self.valid_cl_vm.read() {
+            if let Ok(lock) = self.valid_cl_vm.try_read() {
                 if !*lock {
                     client.reset_vc();
                     continue;
                 }
             }
 
-            match PLAYER_POS.read() {
+            match PLAYER_POS.try_read() {
                 Ok(positions) => {
-                    // log::info!("{positions:?}");
-
-                    if let Ok(local_player) = LOCAL_PLAYER.read() {
+                    if let Ok(local_player) = LOCAL_PLAYER.try_read() {
                         if let Some(local) = positions.get(&*local_player) {
                             client.update_player_volumes(local, &positions);
-                            // log::info!("updating volume");
                         }
                     }
                 }
@@ -121,7 +147,7 @@ impl Plugin for ProximityChat {
             }
 
             if let Ok(lock) = client.members.try_read() {
-                if let Ok(mut lock_members) = SHARED.members.write() {
+                if let Ok(mut lock_members) = SHARED.members.try_write() {
                     // expensive :(
                     let members: Vec<String> =
                         (*lock.values().cloned().collect::<Vec<_>>()).to_vec();
@@ -152,7 +178,7 @@ impl Plugin for ProximityChat {
         }
 
         loop {
-            if let Ok(mut lock) = self.valid_cl_vm.write() {
+            if let Ok(mut lock) = self.valid_cl_vm.try_write() {
                 *lock = true;
                 break;
             }
@@ -165,7 +191,7 @@ impl Plugin for ProximityChat {
 
     fn on_sqvm_destroyed(&self, _context: ScriptVmType) {
         loop {
-            if let Ok(mut lock) = self.valid_cl_vm.write() {
+            if let Ok(mut lock) = self.valid_cl_vm.try_write() {
                 *lock = false;
                 break;
             }
@@ -178,11 +204,11 @@ unsafe impl Sync for ProximityChat {}
 entry!(ProximityChat);
 
 pub fn connect(server_name: String) {
-    if SHARED.connected.read().is_ok_and(|x| *x) {
+    if SHARED.connected.try_read().is_ok_and(|x| *x) {
         return;
     }
 
-    match LOCAL_PLAYER.read() {
+    match LOCAL_PLAYER.try_read() {
         Ok(local_player) => {
             if *local_player == "None" {
                 log::warn!("player name isn't registered yet so connection is canceled");
@@ -197,7 +223,7 @@ pub fn connect(server_name: String) {
 }
 
 fn disconnect() {
-    if SHARED.connected.read().is_ok_and(|x| !*x) {
+    if SHARED.connected.try_read().is_ok_and(|x| !*x) {
         return;
     }
 
@@ -208,7 +234,7 @@ fn disconnect() {
 
 #[sqfunction(VM=Client,ExportName=ProxiChatPushPlayerPositions)]
 fn push_player_pos(name: String, pos: Vector3) {
-    if let Ok(mut lock) = PLAYER_POS.write() {
+    if let Ok(mut lock) = PLAYER_POS.try_write() {
         _ = lock.insert(name, pos);
     }
     sq_return_null!()
@@ -223,12 +249,12 @@ fn push_player_name(name: String) {
     }
 
     loop {
-        if let Ok(mut lock) = LOCAL_PLAYER.write() {
+        if let Ok(mut lock) = LOCAL_PLAYER.try_write() {
             *lock = name;
             break;
         }
     }
-    
+
     sq_return_null!()
 }
 

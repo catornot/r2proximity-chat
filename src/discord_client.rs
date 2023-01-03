@@ -57,7 +57,7 @@ impl DiscordClient {
         self.client
             .oauth2_token(move |_discord, token| match token {
                 Ok(token) => {
-                    let mut tk = unsafe { DISCORD.token.write().unwrap() };
+                    let mut tk = unsafe { DISCORD.token.try_write().unwrap() };
                     *tk = Some(token.access_token().to_string());
                 }
                 Err(error) => {
@@ -248,7 +248,7 @@ impl DiscordClient {
     }
 
     pub fn reset_vc(&self) {
-        let members = match self.members.read() {
+        let members = match self.members.try_read() {
             Ok(m) => m,
             _ => return,
         };
@@ -259,12 +259,12 @@ impl DiscordClient {
     }
 
     pub fn update_player_volumes(&self, local_pos: &Vector3, positions: &HashMap<String, Vector3>) {
-        let members = match self.members.read() {
+        let members = match self.members.try_read() {
             Ok(m) => m,
             _ => return,
         };
 
-        // let lobby_id = match self.lobby_id.read() {
+        // let lobby_id = match self.lobby_id.try_read() {
         //     Ok(id) => match *id {
         //         Some(id) => id,
         //         None => return,
@@ -320,7 +320,7 @@ impl DiscordClient {
     fn write_id(id: i64) {
         let client = unsafe { &mut *DISCORD };
         loop {
-            if let Ok(mut lock) = client.lobby_id.write() {
+            if let Ok(mut lock) = client.lobby_id.try_write() {
                 *lock = Some(id);
                 break;
             }
@@ -349,7 +349,7 @@ impl DiscordClient {
                     let members = unsafe { &mut DISCORD.members };
 
                     loop {
-                        if let Ok(mut members) = members.write() {
+                        if let Ok(mut members) = members.try_write() {
                             log::info!("{} is in the vc :)", name);
                             members.insert(member_id, name);
                             break;
@@ -378,7 +378,7 @@ impl EventHandler for DiscordEvent {
                 let members = unsafe { &mut DISCORD.members };
 
                 loop {
-                    if let Ok(mut members) = members.write() {
+                    if let Ok(mut members) = members.try_write() {
                         log::info!("{} joined the lobby :)", name);
                         members.insert(member_id, name);
                         break;
@@ -402,7 +402,7 @@ impl EventHandler for DiscordEvent {
         let members = unsafe { &mut DISCORD.members };
 
         loop {
-            if let Ok(mut members) = members.write() {
+            if let Ok(mut members) = members.try_write() {
                 match members.remove(&member_id) { 
                     Some(name) => log::info!("{name} left the lobby :("),
                     None => log::info!("someone left the lobby"), 
@@ -433,7 +433,7 @@ impl EventHandler for DiscordEvent {
 
 fn update_connection_status(is_connected: bool) {
     loop {
-        if let Ok(mut lock) = SHARED.connected.write() {
+        if let Ok(mut lock) = SHARED.connected.try_write() {
             *lock = is_connected;
             break;
         }

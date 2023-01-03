@@ -39,6 +39,7 @@ struct Window {
     muted: bool,
     deafen: bool,
     send: Sender<SendComms>,
+    name_overwrite: String,
 }
 
 impl Window {
@@ -47,6 +48,7 @@ impl Window {
             muted: false,
             deafen: false,
             send,
+            name_overwrite: String::new(),
         }
     }
 }
@@ -62,12 +64,12 @@ impl eframe::App for Window {
 
             ui.add_space(10.0);
 
-            let server_text = match SHARED.server_name.read() {
+            let server_text = match SHARED.server_name.try_read() {
                 Ok(s) => (*s).clone(),
                 Err(_) => "none".to_string(),
             };
 
-            let connect_text = if SHARED.connected.read().is_ok_and(|x| *x) {
+            let connect_text = if SHARED.connected.try_read().is_ok_and(|x| *x) {
                 format!("Connected to {server_text}")
             } else {
                 "Disconnected".to_string()
@@ -79,30 +81,49 @@ impl eframe::App for Window {
             ui.label(connect_text);
             ui.add_space(1.0);
 
-            // // todo: add connected status and other stuff :)
-
             let text_mute = if self.muted { "Unmute" } else { " Mute " };
             let text_deafen = if self.deafen { "Undeafen" } else { " Deafen " };
 
-            // no mutable stuff :D
-            let saved_mute = self.muted;
-            let saved_deafen = self.deafen;
+            let mut should_send = false;
 
             ui.horizontal(|ui| {
                 if ui.button(text_mute).clicked() {
                     self.muted = !self.muted;
+                    should_send = true
                 }
 
                 if ui.button(text_deafen).clicked() {
                     self.deafen = !self.deafen;
+                    should_send = true
                 }
             });
 
-            if saved_deafen != self.deafen || saved_mute != self.muted {
+            let mut name_overwrite = None;
+            let mut reset_server_name = false;
+
+            ui.horizontal(|ui| {
+                ui.text_edit_singleline(&mut self.name_overwrite)
+                    .context_menu(|ui| {
+                        if ui.button("Push Overwrite").clicked() && !self.name_overwrite.is_empty() {
+                            name_overwrite = Some(self.name_overwrite.clone());
+                            should_send = true
+                        }
+                        if ui.button("reset").clicked() {
+                            self.name_overwrite = server_text;
+
+                            reset_server_name = true;
+                            should_send = true
+                        }
+                    });
+            });
+
+            if should_send {
                 self.send
                     .send(SendComms {
                         mute: self.muted,
                         deaf: self.deafen,
+                        name_overwrite,
+                        reset_server_name,
                     })
                     .unwrap();
             }
