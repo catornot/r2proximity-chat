@@ -20,7 +20,7 @@ use crate::window::init_window;
 
 use crate::discord_client::DiscordClient;
 
-const BLACKLIST: [&str; 1] = ["Fragyeeter"];
+const BLACKLIST: [&str; 2] = ["Fragyeeter","R8GOD"];
 
 static PLAYER_POS: Lazy<RwLock<HashMap<String, Vector3>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
@@ -47,6 +47,7 @@ impl Plugin for ProximityChat {
     fn initialize(&mut self, plugin_data: &PluginData) {
         _ = plugin_data.register_sq_functions(info_push_player_pos);
         _ = plugin_data.register_sq_functions(info_push_player_name);
+        _ = plugin_data.register_sq_functions(info_push_server_name);
 
         let (send, recv) = channel::<SendComms>();
 
@@ -124,7 +125,7 @@ impl Plugin for ProximityChat {
                     // expensive :(
                     let members: Vec<String> =
                         (*lock.values().cloned().collect::<Vec<_>>()).to_vec();
-                    
+
                     *lock_members = members
                 }
             }
@@ -157,25 +158,8 @@ impl Plugin for ProximityChat {
             }
         }
 
-        if let Ok(mut lock) = self.valid_cl_vm.write() {
-            *lock = true
-        }
-
-        if SHARED.connected.read().is_ok_and(|x| *x) {
-            return;
-        }
-
-        match LOCAL_PLAYER.read() {
-            Ok(local_player) => {
-                if *local_player == "None" {
-                    log::warn!("player name isn't registered yet so connection is canceled");
-                } else {
-                    log::info!("auto connecting to {}", "catornot-test");
-                    let client = unsafe { &DISCORD };
-                    client.join("catornot-test".to_owned(), local_player.clone());
-                }
-            }
-            Err(err) => log::error!("unable to get lock : {err:?}"),
+        if let Ok(lock) = &SHARED.server_name.try_read() {
+            connect((*lock).clone());
         }
     }
 
@@ -193,6 +177,35 @@ unsafe impl Sync for ProximityChat {}
 
 entry!(ProximityChat);
 
+pub fn connect(server_name: String) {
+    if SHARED.connected.read().is_ok_and(|x| *x) {
+        return;
+    }
+
+    match LOCAL_PLAYER.read() {
+        Ok(local_player) => {
+            if *local_player == "None" {
+                log::warn!("player name isn't registered yet so connection is canceled");
+            } else {
+                log::info!("connecting to {}", server_name);
+                let client = unsafe { &DISCORD };
+                client.join(server_name, local_player.clone());
+            }
+        }
+        Err(err) => log::error!("unable to get lock : {err:?}"),
+    }
+}
+
+fn disconnect() {
+    if SHARED.connected.read().is_ok_and(|x| !*x) {
+        return;
+    }
+
+    log::info!("disconnecting from discord lobby");
+    let client = unsafe { &DISCORD };
+    client.leave();
+}
+
 #[sqfunction(VM=Client,ExportName=ProxiChatPushPlayerPositions)]
 fn push_player_pos(name: String, pos: Vector3) {
     if let Ok(mut lock) = PLAYER_POS.write() {
@@ -203,17 +216,38 @@ fn push_player_pos(name: String, pos: Vector3) {
 
 #[sqfunction(VM=Client,ExportName=ProxiChatPushPlayerName)]
 fn push_player_name(name: String) {
+    log::info!("name is set to {name}");
+
     if BLACKLIST.contains(&&name[..]) {
         sq_return_null!()
     }
 
     loop {
         if let Ok(mut lock) = LOCAL_PLAYER.write() {
-            *lock = name.clone();
+            *lock = name;
             break;
         }
     }
-    log::info!("name is set to {name}");
+    
+    sq_return_null!()
+}
+
+#[sqfunction(VM=Client,ExportName=ProxiChatPushServerName)]
+fn push_server_name(server_name: String) {
+    log::info!("server name is set to {server_name}");
+
+    loop {
+        if let Ok(mut lock) = SHARED.server_name.try_write() {
+            if *lock != server_name {
+                disconnect()
+            }
+            connect(server_name.clone());
+
+            *lock = server_name;
+            break;
+        }
+    }
+
     sq_return_null!()
 }
 

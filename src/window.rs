@@ -62,12 +62,20 @@ impl eframe::App for Window {
 
             ui.add_space(10.0);
 
-            let connect_text = if SHARED.connected.read().is_ok_and(|x| *x) {
-                "Connected"
-            } else {
-                "Disconnected"
+            let server_text = match SHARED.server_name.read() {
+                Ok(s) => (*s).clone(),
+                Err(_) => "none".to_string(),
             };
 
+            let connect_text = if SHARED.connected.read().is_ok_and(|x| *x) {
+                format!("Connected to {server_text}")
+            } else {
+                "Disconnected".to_string()
+            };
+
+            ui.add_visible_ui(&server_text[..] == "Unnamed Northstar Server", |ui| {
+                ui.small("this server isn't updated - proximity chat may break")
+            });
             ui.label(connect_text);
             ui.add_space(1.0);
 

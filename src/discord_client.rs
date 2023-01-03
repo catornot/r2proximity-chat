@@ -98,11 +98,11 @@ impl DiscordClient {
                                     match result {
                                         Ok(_) => {
                                             log::info!("connected to a vc");
-                                            Self::update_connection_status(true)
+                                            update_connection_status(true)
                                         },
                                         Err(err) => {
                                             log::error!("failed to connected to vc {err}");
-                                            Self::update_connection_status(false)
+                                            update_connection_status(false)
                                         }
                                     }
                                 );
@@ -164,11 +164,11 @@ impl DiscordClient {
                                         match result {
                                             Ok(_) => {
                                                 log::info!("connected to a vc");
-                                                Self::update_connection_status(true)
+                                                update_connection_status(true)
                                             },
                                             Err(err) => {
                                                 log::error!("failed to connected to a vc {err}");
-                                                Self::update_connection_status(false)
+                                                update_connection_status(false)
                                             }
                                         }
                                     );
@@ -203,6 +203,48 @@ impl DiscordClient {
                 }
             },
         )
+    }
+
+    pub fn leave(&self) {
+        
+        loop {
+            if let Ok(mut lock) = self.members.try_write() {
+                lock.clear();
+                break;
+            }
+        }
+
+        let lobby_id = match self.lobby_id.try_read() {
+            Ok(lock) => match *lock {
+                Some(lobby_id) => lobby_id,
+                None => return log::warn!("disconnected failed : no lobby"),
+            },
+            Err(err) => return log::warn!("disconnected failed : {err}"),
+        };
+
+        self.client.disconnect_lobby_voice(lobby_id, |_,result| { 
+            match result {
+                Ok(_) => log::info!("left a vc"),
+                Err(err) => log::error!("failed to leave a vc : {err}"),
+            }
+        });
+
+        self.client.disconnect_lobby(lobby_id, |_,result| { 
+            match result {
+                Ok(_) => {
+                    log::info!("left the lobby");
+                    update_connection_status(false);
+                    
+                    loop {
+                        if let Ok(lock) = SHARED.server_name.try_read() {
+                            crate::connect((*lock).clone()); // crashes :cluless:
+                            break
+                        }
+                    }
+                },
+                Err(err) => log::error!("failed to leave the lobby : {err}"),
+            }
+        })
     }
 
     pub fn reset_vc(&self) {
@@ -290,15 +332,6 @@ impl DiscordClient {
         client.client.current_user().unwrap().id()
     }
 
-    fn update_connection_status(is_connected: bool) {
-        loop {
-            if let Ok(mut lock) = SHARED.connected.write() {
-                *lock = is_connected;
-                break;
-            }
-        }
-    }
-
     fn add_connected_members(discord: &Discord<'_, DiscordEvent>, lobby_id: i64) {
 
         for index in 0..discord.lobby_member_count(lobby_id).unwrap() {
@@ -377,6 +410,32 @@ impl EventHandler for DiscordEvent {
                 break;
             }
             rrplug::prelude::wait(10);
+        }
+    }
+
+    fn on_lobby_delete(&mut self, _discord: &Discord<'_, Self>, _lobby_id: i64, _reason: u32) {
+        log::info!("lobby got destroyed");
+
+        update_connection_status(false)
+    }
+    
+    // todo: add this
+    // fn on_speaking(
+    //         &mut self,
+    //         discord: &Discord<'_, Self>,
+    //         lobby_id: i64,
+    //         member_id: i64,
+    //         speaking: bool,
+    //     ) {
+        
+    // }
+}
+
+fn update_connection_status(is_connected: bool) {
+    loop {
+        if let Ok(mut lock) = SHARED.connected.write() {
+            *lock = is_connected;
+            break;
         }
     }
 }
