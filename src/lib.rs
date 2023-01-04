@@ -98,7 +98,18 @@ impl Plugin for ProximityChat {
                     continue;
                 }
 
-                if comms.name_overwrite.is_some() && SHARED.connected.try_read().is_ok_and(|x| *x) {
+                if comms.reset_server_name {
+                    let func_name = to_sq_string!("CodeCallback_PushServerName");
+                    unsafe {
+                        (sq_functions.sq_schedule_call_external)(
+                            ScriptContext_CLIENT,
+                            func_name.as_ptr(),
+                            pop_function,
+                        )
+                    }
+                } else if comms.name_overwrite.is_some()
+                    && SHARED.connected.try_read().is_ok_and(|x| *x)
+                {
                     let server_name = comms.name_overwrite.unwrap();
                     log::info!("got server name overwrite {server_name}");
                     log::warn!("spamming this may result in a crash");
@@ -109,17 +120,6 @@ impl Plugin for ProximityChat {
                         }
 
                         *lock = server_name;
-                    }
-                }
-
-                if comms.reset_server_name {
-                    let func_name = to_sq_string!("CodeCallback_PushServerName");
-                    unsafe {
-                        (sq_functions.sq_schedule_call_external)(
-                            ScriptContext_CLIENT,
-                            func_name.as_ptr(),
-                            pop_function,
-                        )
                     }
                 }
             }
@@ -215,7 +215,7 @@ pub fn connect(server_name: String) {
             } else {
                 log::info!("connecting to {}", server_name);
                 let client = unsafe { &DISCORD };
-                client.join(server_name, local_player.clone());
+                client.join(server_name, local_player.clone(), 0);
             }
         }
         Err(err) => log::error!("unable to get lock : {err:?}"),

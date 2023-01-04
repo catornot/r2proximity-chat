@@ -78,7 +78,14 @@ impl eframe::App for Window {
             ui.add_visible_ui(&server_text[..] == "Unnamed Northstar Server", |ui| {
                 ui.small("this server isn't updated - proximity chat may break")
             });
-            ui.label(connect_text);
+            ui.horizontal(|ui| {
+                ui.label(connect_text);
+                
+                ui.menu_button("copy", |ui| {
+                    ui.label("server name copy thing :)");
+                    ui.text_edit_singleline(&mut server_text.clone());
+                });
+            });
             ui.add_space(1.0);
 
             let text_mute = if self.muted { "Unmute" } else { " Mute " };
@@ -104,7 +111,8 @@ impl eframe::App for Window {
             ui.horizontal(|ui| {
                 ui.text_edit_singleline(&mut self.name_overwrite)
                     .context_menu(|ui| {
-                        if ui.button("Push Overwrite").clicked() && !self.name_overwrite.is_empty() {
+                        if ui.button("Push Overwrite").clicked() && !self.name_overwrite.is_empty()
+                        {
                             name_overwrite = Some(self.name_overwrite.clone());
                             should_send = true
                         }

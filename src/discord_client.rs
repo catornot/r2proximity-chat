@@ -11,6 +11,7 @@ use crate::DISCORD;
 
 const APP_ID: i64 = 1056631161276874824;
 const NAME_KEY: &str = "tf_name";
+const MAX_ATTEMPS: i32 = 5;
 
 // oath url = https://discord.com/api/oauth2/authorize?client_id=1056631161276874824&redirect_uri=https%3A%2F%2Fcatornot.github.io%2Ftfproxichat&response_type=code&scope=rpc.voice.read%20rpc.activities.write%20gdm.join%20guilds.join%20activities.read%20applications.entitlements%20voice%20activities.write%20rpc.voice.write%20identify
 
@@ -67,7 +68,13 @@ impl DiscordClient {
             });
     }
 
-    pub fn join(&self, server_name: String, nickname: String) {
+    pub fn join(&self, server_name: String, nickname: String, attemp: i32) {
+
+        if attemp >= MAX_ATTEMPS {
+            log::warn!("reached max connection attemps");
+            return;
+        }
+
         self.client.lobby_search(
             SearchQuery::new()
                 .filter(
@@ -87,7 +94,7 @@ impl DiscordClient {
                             .capacity(1000)
                             .kind(LobbyKind::Public)
                             .add_metadata("name".to_string(), server_name.clone()),
-                        |discord, result| 
+                        move |discord, result| 
                         match result {
                             Ok(lobby) => {
                                 log::info!("yay we have new lobby");
@@ -137,7 +144,7 @@ impl DiscordClient {
                             Err(err) => {
                                 log::error!("lobby creation failed {err}");
                                 rrplug::prelude::wait(10000);
-                                unsafe { DISCORD.join(server_name, nickname) }
+                                unsafe { DISCORD.join(server_name, nickname, attemp + 1) }
                             }
                         }
                     )
@@ -191,7 +198,7 @@ impl DiscordClient {
                             Err(err) => {
                                 log::info!("couldn't connect to the lobby: {err}");
                                 rrplug::prelude::wait(10000);
-                                unsafe { DISCORD.join(server_name, nickname) }
+                                unsafe { DISCORD.join(server_name, nickname, attemp + 1) }
                             }
                         }
                     );
@@ -199,14 +206,13 @@ impl DiscordClient {
                 Err(_) => {
                     log::info!("failed to get lobbies; retrying in 10 seconds");
                     rrplug::prelude::wait(10000);
-                    unsafe { DISCORD.join(server_name, nickname) }
+                    unsafe { DISCORD.join(server_name, nickname, attemp + 1) }
                 }
             },
         )
     }
 
     pub fn leave(&self) {
-        
         loop {
             if let Ok(mut lock) = self.members.try_write() {
                 lock.clear();
