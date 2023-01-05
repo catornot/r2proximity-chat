@@ -32,7 +32,6 @@ static mut DISCORD: Lazy<DiscordClient> = Lazy::new(DiscordClient::new);
 struct ProximityChat {
     valid_cl_vm: RwLock<bool>,
     recv: Option<Receiver<SendComms>>,
-    // current_server: Option<String>, // how do I get this?
 }
 
 impl Plugin for ProximityChat {
@@ -40,7 +39,6 @@ impl Plugin for ProximityChat {
         Self {
             valid_cl_vm: RwLock::new(false),
             recv: None,
-            // current_server: None,
         }
     }
 
