@@ -283,29 +283,12 @@ impl DiscordClient {
 
         for (id, player_name) in members.iter()
         {
-            log::info!("we have a player with id {id}");
-            // log::info!(
-            //     "number of meta stuff {:?}",
-            //     self.client.lobby_member_metadata_count(lobby_id, *id)
-            // );
-            // let player_name = match self.client.lobby_member_metadata(lobby_id, *id, NAME_KEY) {
-            //     Ok(n) => n,
-            //     Err(_) => continue,
-            // };
-            // let player_name = match members.get(&id) {
-            //     Some(name) => name,
-            //     None => continue,
-            // };
-            log::info!("we have a player with name {}", player_name.clone());
-            log::info!("postions: {positions:?}");
-
             let player_pos = match positions.get(player_name) {
                 Some(pos) => pos,
                 None => continue,
             };
 
             if player_pos == local_pos {
-                log::info!("found the same player");
                 continue;
             }
 
@@ -317,7 +300,6 @@ impl DiscordClient {
 
             let dis = (y.powi(2) + x.powi(2)).sqrt() as i32;
             let volume = ((-dis / 2) + 500).clamp(0, 200);
-            log::info!("setting volume : {volume}");
 
             _ = self.client.set_local_volume(*id, volume.try_into().unwrap()); // how could it possible fail?
         }
