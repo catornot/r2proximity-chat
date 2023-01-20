@@ -20,7 +20,7 @@ use crate::window::init_window;
 
 use crate::discord_client::DiscordClient;
 
-const BLACKLIST: [&str; 2] = ["Fragyeeter", "R8GOD"];
+const BLACKLIST: [&str; 3] = ["Fragyeeter", "R8GOD", "Polomar_TF2"];
 
 static PLAYER_POS: Lazy<RwLock<HashMap<String, Vector3>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
@@ -60,12 +60,7 @@ impl Plugin for ProximityChat {
     }
 
     fn main(&self) {
-        let sq_functions = loop {
-            if let Some(sf) = unsafe { SQFUNCTIONS.client.as_ref() } {
-                break sf;
-            }
-            wait(10000)
-        };
+        let sq_functions = SQFUNCTIONS.client.wait();
 
         let client = unsafe { &mut *DISCORD };
         let recv = self.recv.as_ref().unwrap();
