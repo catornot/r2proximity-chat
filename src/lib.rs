@@ -5,6 +5,7 @@ use once_cell::sync::Lazy;
 use rrplug::bindings::squirrelclasstypes::ScriptContext_CLIENT;
 use rrplug::prelude::*;
 use rrplug::wrappers::northstar::ScriptVmType;
+use rrplug::wrappers::squirrel::CSquirrelVMHandle;
 use rrplug::wrappers::vector::Vector3;
 use rrplug::{sq_return_null, sqfunction, to_sq_string};
 use std::collections::HashMap;
@@ -163,12 +164,13 @@ impl Plugin for ProximityChat {
 
     fn on_sqvm_created(
         &self,
-        context: northstar::ScriptVmType,
-        _sqvm: &'static squirreldatatypes::CSquirrelVM,
+        sqvm_handle: &CSquirrelVMHandle
     ) {
-        if context != ScriptVmType::Client {
+        if sqvm_handle.get_context() != ScriptVmType::Client {
             return;
         }
+
+        sqvm_handle.define_sq_constant("PROXICHAT".to_string(), true);
 
         loop {
             if let Ok(mut lock) = self.valid_cl_vm.try_write() {

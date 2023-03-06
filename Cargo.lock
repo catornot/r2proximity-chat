@@ -1648,6 +1648,7 @@ checksum = "f1382d1f0a252c4bf97dc20d979a2fdd05b024acd7c2ed0f7595d7817666a157"
 [[package]]
 name = "rrplug"
 version = "0.2.0"
+source = "git+https://github.com/catornot/rrplug.git#48078af6a19ca51a7f4fab6003c6e3f36e96203b"
 dependencies = [
  "log",
  "once_cell",
@@ -1658,6 +1659,7 @@ dependencies = [
 [[package]]
 name = "rrplug_proc"
 version = "0.1.0"
+source = "git+https://github.com/catornot/rrplug.git#48078af6a19ca51a7f4fab6003c6e3f36e96203b"
 dependencies = [
  "quote",
  "syn",
