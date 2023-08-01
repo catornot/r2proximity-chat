@@ -2,7 +2,7 @@
 	"name": "r2proxi-chat",
 	"displayname": "PROXICHAT",
 	"description": "r2proxi-chat",
-	"api_version": "2",
+	"api_version": "3",
 	"version": "1.0",
 	"run_on_server": false,
 	"run_on_client": true
