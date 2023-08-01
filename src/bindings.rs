@@ -13,7 +13,7 @@ engine_functions! {
     }
 }
 
-pub fn uid_exits(uid: i32) -> bool {
+pub fn uid_exits(uid: i64) -> bool {
     let uid = uid.to_string();
     let client_array = ENGINE_FUNCTIONS.wait().client_array;
     (0..MAX_PLAYERS)
@@ -22,6 +22,6 @@ pub fn uid_exits(uid: i32) -> bool {
     // maybe not be sound since CBaseClient.uid might not have a terminator
 }
 
-pub fn parse_local_uid() -> Result<i32,std::num::ParseIntError> {
+pub fn parse_local_uid() -> Result<i64,std::num::ParseIntError> {
     unsafe { CStr::from_ptr(ENGINE_FUNCTIONS.wait().local_player_user_id).to_string_lossy().parse() }
 }

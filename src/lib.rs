@@ -32,7 +32,11 @@ impl Plugin for ProximityChat {
         }
     }
 
-    fn main(&self) {}
+    fn main(&self) {
+        loop {
+            self.proximity_chat.run_thread();
+        }
+    }
 
     fn on_engine_load(&self, engine: &EngineLoadType, dll_ptr: DLLPointer) {
         unsafe { EngineFunctions::try_init(&dll_ptr, &ENGINE_FUNCTIONS) };

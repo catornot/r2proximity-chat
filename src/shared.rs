@@ -1,13 +1,16 @@
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+use std::mem::size_of;
 use thiserror::Error;
 
 use crate::{client::Client, server::Server};
 
 pub const PROXICHAT_PORT: usize = 8081;
-pub const AUDIO_BUFFER_SIZE: usize = 512;
-pub type AudioSampleType = u8;
+pub const AUDIO_BUFFER_SIZE: usize = 128;
+pub const READ_BUFFER_SIZE: usize = size_of::<NetPacket>();
+pub const DEFAULT_FILL_SAMPLE: AudioSampleType = 0.;
+pub type AudioSampleType = f32;
 pub type AudioSampleVec = Vec<AudioSampleType>;
 
 #[derive(Debug)]
@@ -24,7 +27,14 @@ impl ProximityChatType {
     pub fn run(&self) {
         match self {
             ProximityChatType::Server(s) => s.lock().run(),
-            ProximityChatType::Client(c) => c.lock().run(),
+            ProximityChatType::Client(_) => {},
+        }
+    }
+
+    pub fn run_thread(&self) {
+        match self {
+            ProximityChatType::Server(_) => {},
+            ProximityChatType::Client(c) => c.lock().run_thread(),
         }
     }
 }
@@ -42,13 +52,14 @@ impl From<bool> for ProximityChatType {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum NetPacket {
     Auth {
-        uid: i32,
+        uid: i64,
     },
     AuthComfirm,
     #[serde(with = "BigArray")]
     NewAudio([AudioSampleType; AUDIO_BUFFER_SIZE]),
     #[serde(with = "BigArray")]
     ProccessedAudio([AudioSampleType; AUDIO_BUFFER_SIZE]),
+    None,
 }
 
 #[derive(Error, Debug)]
@@ -60,7 +71,7 @@ pub enum ProxiChatError {
     ImpossibleOnServer,
 
     #[error("a client tried to connect with a invalid uid: {0}")]
-    InvalidUID(i32),
+    InvalidUID(i64),
 
     #[error("a vec wasn't converted to an array")]
     VecToArrayError,
@@ -79,9 +90,19 @@ impl ProxiChatError {
     pub fn is_would_block_error(&self) -> bool {
         match self {
             ProxiChatError::SocketError(err) => {
-                matches!(err.kind(), std::io::ErrorKind::WouldBlock)
+                if matches!(err.kind(), std::io::ErrorKind::WouldBlock) {
+                    log::info!("std::io::ErrorKind::WouldBlock");
+                    true
+                } else {
+                    false
+                }
             }
             _ => false,
         }
     }
+}
+
+pub fn log_mark_error<T: std::error::Error + core::fmt::Display>(msg: &str, err: T) -> T {
+    log::info!("{msg}: {err}");
+    err
 }
